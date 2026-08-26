@@ -99,8 +99,10 @@ const EmptyStateContainer = styled.div<{ withHero?: boolean }>`
 `;
 
 const PageLayout = styled.div`
-    display: grid;
-    grid-template-rows: auto auto;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
 `;
 
 const HeaderRow = styled.div<{ isBallerinaWorkspace?: boolean }>`
@@ -124,20 +126,22 @@ const MainContent = styled.div<{ fullWidth?: boolean }>`
     padding: 16px;
     display: grid;
     grid-template-columns: ${(props: { fullWidth?: boolean }) => props.fullWidth ? '1fr' : '3fr 1fr'};
-    min-height: 0; // Prevents grid blowout
-    overflow: auto;
-    // Adjust based on header and any margins.
-    max-height: calc(100vh - 90px);
+    grid-template-rows: minmax(0, 1fr);
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 `;
 
 const DiagramPanel = styled.div<{ noPadding?: boolean, noBorder?: boolean }>`
     border: ${(props: { noBorder?: boolean }) => props.noBorder ? "none" : `1px solid ${ThemeColors.OUTLINE_VARIANT}`};
     border-radius: 4px;
-    padding: ${(props: { noPadding?: boolean }) => (props.noPadding ? "0" : "16px")};
+    // Mirror the header's top inset at the bottom; the inner header supplies top/side padding.
+    padding: ${(props: { noPadding?: boolean }) => (props.noPadding ? "0 0 16px 0" : "16px")};
     overflow: auto;
     display: flex;
     flex-direction: column;
-    min-height: calc(60vh);
+    flex: 1;
+    min-height: 0;
 `;
 
 const LeftContent = styled.div`
@@ -149,12 +153,20 @@ const LeftContent = styled.div`
 
 const SidePanel = styled.div`
     margin-left: 16px;
+    min-height: 0;
+    overflow-y: auto;
 `;
 
-const FooterPanel = styled.div`
+// Full-height README view that replaces the design panel.
+const ReadmePanel = styled.div`
     border: 1px solid ${ThemeColors.OUTLINE_VARIANT};
     border-radius: 4px;
     padding: 16px;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
 `;
 
 const ActionContainer = styled.div`
@@ -224,13 +236,9 @@ const ReadmeButtonContainer = styled.div`
     gap: 2px;
 `;
 
-const ReadmeDot = styled.span`
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    margin-left: 4px;
-    border-radius: 50%;
-    background: var(--vscode-textLink-foreground);
+const ViewToggleWrap = styled.span`
+    display: inline-flex;
+    align-self: center;
 `;
 
 const ReadmeContent = styled.div`
@@ -845,7 +853,7 @@ export function PackageOverview(props: PackageOverviewProps) {
     const [isInProject, setIsInProject] = useState(false);
     const [isLibrary, setIsLibrary] = useState<boolean>(false);
     const [isNPSupported, setIsNPSupported] = useState<boolean>(false);
-    const [showReadme, setShowReadme] = useState(false);
+    const [overviewView, setOverviewView] = useState<"design" | "readme">("design");
     const aiPanelOpen = useAiPanelOpen();
     const agentState = useAgentRunState();
     const awaitingInput = agentState === "awaiting-input";
@@ -1110,15 +1118,6 @@ export function PackageOverview(props: PackageOverviewProps) {
                     <Button appearance="icon" onClick={handleLocalDebug} buttonSx={{ padding: "4px 8px" }}>
                         <Codicon name="debug" sx={{ marginRight: 5 }} /> Debug
                     </Button>
-                    <Button
-                        appearance="icon"
-                        onClick={() => setShowReadme((prev) => !prev)}
-                        buttonSx={{ padding: "4px 8px" }}
-                        tooltip={showReadme ? "Hide README" : "Show README"}
-                    >
-                        <Codicon name="book" sx={{ marginRight: 5 }} /> README
-                        {readmeContent && !showReadme && <ReadmeDot />}
-                    </Button>
                 </>
             )}
             {isLibrary && (
@@ -1127,14 +1126,31 @@ export function PackageOverview(props: PackageOverviewProps) {
         </>
     );
 
+    const readmeToggle = !isLibrary ? (
+        <ViewToggleWrap>
+            <Button
+                appearance="icon"
+                onClick={() => setOverviewView((v) => (v === "readme" ? "design" : "readme"))}
+                buttonSx={{ padding: "4px 8px" }}
+                tooltip={overviewView === "readme" ? "Back to design" : "View README"}
+            >
+                {overviewView === "readme" ? (
+                    <><Codicon name="circuit-board" sx={{ marginRight: 5 }} /> Design</>
+                ) : (
+                    <><Codicon name="book" sx={{ marginRight: 5 }} /> README</>
+                )}
+            </Button>
+        </ViewToggleWrap>
+    ) : undefined;
+
     return (
-        <>
+        <PageLayout>
             {isInProject && <TopNavigationBar projectPath={projectPath} />}
-            <PageLayout>
-                {isInProject ? (
+            {isInProject ? (
                     <TitleBar
                         title={integrationTitle}
                         subtitle={isLibrary ? "Library" : "Integration"}
+                        subtitleElement={readmeToggle}
                         onBack={handleBack}
                         actions={headerActions}
                         onTitleEdit={handleTitleUpdate}
@@ -1151,6 +1167,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                                 <ProjectTitle>{integrationTitle}</ProjectTitle>
                             </EditableTitle>
                             <ProjectSubtitle>{isLibrary ? "Library" : "Integration"}</ProjectSubtitle>
+                            {readmeToggle}
                         </TitleContainer>
                         <HeaderControls>
                             <UndoRedoGroup key={Date.now()} />
@@ -1160,6 +1177,35 @@ export function PackageOverview(props: PackageOverviewProps) {
                 )}
                 <MainContent fullWidth={isLibrary}>
                     <LeftContent>
+                        {overviewView === "readme" && !isLibrary ? (
+                            <ReadmePanel>
+                                <ReadmeHeaderContainer>
+                                    <Title variant="h2">README</Title>
+                                    <ReadmeButtonContainer>
+                                        {readmeContent && isEmptyIntegration() && (
+                                            <Button appearance="icon" onClick={handleGenerateWithReadme} buttonSx={{ padding: "4px 8px" }}>
+                                                <Codicon name="wand" sx={{ marginRight: 4, fontSize: 16 }} /> Generate with Readme
+                                            </Button>
+                                        )}
+                                        <Button appearance="icon" onClick={handleEditReadme} buttonSx={{ padding: "4px 8px" }}>
+                                            <Icon name="bi-edit" sx={{ marginRight: 8, fontSize: 16 }} /> Edit
+                                        </Button>
+                                    </ReadmeButtonContainer>
+                                </ReadmeHeaderContainer>
+                                <ReadmeContent>
+                                    {readmeContent ? (
+                                        <Markdown>{readmeContent}</Markdown>
+                                    ) : (
+                                        <EmptyReadmeContainer>
+                                            <Description variant="body2">
+                                                Describe your integration and generate your artifacts with AI
+                                            </Description>
+                                            <VSCodeLink onClick={handleEditReadme}>Add a README</VSCodeLink>
+                                        </EmptyReadmeContainer>
+                                    )}
+                                </ReadmeContent>
+                            </ReadmePanel>
+                        ) : (
                         <DiagramPanel noPadding={true} noBorder={isLibrary}>
                             {showAlert && (
                                 <AlertBoxWithClose
@@ -1242,37 +1288,6 @@ export function PackageOverview(props: PackageOverviewProps) {
                                 </DiagramContent>
                             )}
                         </DiagramPanel>
-                        {!isLibrary && showReadme && (
-                            <FooterPanel>
-                                <ReadmeHeaderContainer>
-                                    <Title variant="h2">README</Title>
-                                    <ReadmeButtonContainer>
-                                        {readmeContent && isEmptyIntegration() && (
-                                            <Button appearance="icon" onClick={handleGenerateWithReadme} buttonSx={{ padding: "4px 8px" }}>
-                                                <Codicon name="wand" sx={{ marginRight: 4, fontSize: 16 }} /> Generate with Readme
-                                            </Button>
-                                        )}
-                                        <Button appearance="icon" onClick={handleEditReadme} buttonSx={{ padding: "4px 8px" }}>
-                                            <Icon name="bi-edit" sx={{ marginRight: 8, fontSize: 16 }} /> Edit
-                                        </Button>
-                                        <Button appearance="icon" onClick={() => setShowReadme(false)} buttonSx={{ padding: "4px 8px" }} tooltip="Hide README">
-                                            <Codicon name="close" />
-                                        </Button>
-                                    </ReadmeButtonContainer>
-                                </ReadmeHeaderContainer>
-                                <ReadmeContent>
-                                    {readmeContent ? (
-                                        <Markdown>{readmeContent}</Markdown>
-                                    ) : (
-                                        <EmptyReadmeContainer>
-                                            <Description variant="body2">
-                                                Describe your integration and generate your artifacts with AI
-                                            </Description>
-                                            <VSCodeLink onClick={handleEditReadme}>Add a README</VSCodeLink>
-                                        </EmptyReadmeContainer>
-                                    )}
-                                </ReadmeContent>
-                            </FooterPanel>
                         )}
                     </LeftContent>
                     {!isLibrary && (
@@ -1317,7 +1332,6 @@ export function PackageOverview(props: PackageOverviewProps) {
                         </SidePanel>
                     )}
                 </MainContent>
-            </PageLayout>
-        </>
+        </PageLayout>
     );
 }

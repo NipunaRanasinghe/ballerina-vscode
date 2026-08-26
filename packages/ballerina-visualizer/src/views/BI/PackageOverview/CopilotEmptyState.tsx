@@ -147,7 +147,7 @@ const RunBlock = styled.div`
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-top: 20px;
+    margin-top: 28px;
 `;
 
 const IdleBlock = styled.div`
@@ -155,6 +155,7 @@ const IdleBlock = styled.div`
     flex-direction: column;
     align-items: center;
     width: 100%;
+    margin-top: 28px;
     animation: ${riseIn} 400ms ease both;
 `;
 
