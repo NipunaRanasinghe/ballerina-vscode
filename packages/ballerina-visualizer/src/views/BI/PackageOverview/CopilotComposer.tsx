@@ -101,9 +101,18 @@ const riseIn = keyframes`
 
 const Heading = styled.h2`
     margin: 0;
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 300;
     color: var(--vscode-foreground);
+    text-align: center;
+    animation: ${riseIn} 400ms ease both;
+`;
+
+const AssistantName = styled.div`
+    margin-bottom: 8px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 14px;
+    font-weight: 400;
     text-align: center;
     animation: ${riseIn} 400ms ease both;
 `;
@@ -484,6 +493,7 @@ export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps)
                 </RunBlock>
             ) : (
                 <IdleBlock>
+                    <AssistantName>WSO2 Integration Intelligence</AssistantName>
                     <Heading>What would you like to build?</Heading>
 
                     <ComposerRow>
