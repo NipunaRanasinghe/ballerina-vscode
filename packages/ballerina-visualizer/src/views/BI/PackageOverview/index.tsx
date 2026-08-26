@@ -43,7 +43,7 @@ import { TopNavigationBar } from "../../../components/TopNavigationBar";
 import { TitleBar } from "../../../components/TitleBar";
 import { PublishToCentralButton } from "./PublishToCentralButton";
 import { LibraryOverview } from "./LibraryOverview";
-import { CopilotHeroBox } from "../../../components/AgentStatusOrb/CopilotHeroBox";
+import { CopilotEmptyState } from "./CopilotEmptyState";
 import { AWAITING_INPUT_LABEL, useAgentRunState, useAiPanelOpen } from "../../../components/AgentStatusOrb/shared";
 
 /** The diagram engine (`@wso2/component-diagram` and its layout stack) is the
@@ -93,10 +93,9 @@ const EmptyStateContainer = styled.div<{ withHero?: boolean }>`
     bottom: 0;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    // Offsets the prompt bar's height so the block keeps its former position.
-    padding-bottom: ${(props: { withHero?: boolean }) => (props.withHero ? "96px" : "0")};
+    // withHero delegates centering/scrolling to CopilotEmptyState's own layout.
+    align-items: ${(props: { withHero?: boolean }) => (props.withHero ? "stretch" : "center")};
+    justify-content: ${(props: { withHero?: boolean }) => (props.withHero ? "stretch" : "center")};
 `;
 
 const PageLayout = styled.div`
@@ -129,13 +128,6 @@ const MainContent = styled.div<{ fullWidth?: boolean }>`
     overflow: auto;
     // Adjust based on header and any margins.
     max-height: calc(100vh - 90px);
-`;
-
-// Bounded so the prompt box does not stretch the full panel width.
-const HeroRow = styled.div`
-    width: 100%;
-    max-width: 560px;
-    margin-bottom: 24px;
 `;
 
 const DiagramPanel = styled.div<{ noPadding?: boolean, noBorder?: boolean }>`
@@ -230,6 +222,15 @@ const ReadmeButtonContainer = styled.div`
     display: flex;
     align-items: center;
     gap: 2px;
+`;
+
+const ReadmeDot = styled.span`
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 4px;
+    border-radius: 50%;
+    background: var(--vscode-textLink-foreground);
 `;
 
 const ReadmeContent = styled.div`
@@ -844,6 +845,7 @@ export function PackageOverview(props: PackageOverviewProps) {
     const [isInProject, setIsInProject] = useState(false);
     const [isLibrary, setIsLibrary] = useState<boolean>(false);
     const [isNPSupported, setIsNPSupported] = useState<boolean>(false);
+    const [showReadme, setShowReadme] = useState(false);
     const aiPanelOpen = useAiPanelOpen();
     const agentState = useAgentRunState();
     const awaitingInput = agentState === "awaiting-input";
@@ -1108,6 +1110,15 @@ export function PackageOverview(props: PackageOverviewProps) {
                     <Button appearance="icon" onClick={handleLocalDebug} buttonSx={{ padding: "4px 8px" }}>
                         <Codicon name="debug" sx={{ marginRight: 5 }} /> Debug
                     </Button>
+                    <Button
+                        appearance="icon"
+                        onClick={() => setShowReadme((prev) => !prev)}
+                        buttonSx={{ padding: "4px 8px" }}
+                        tooltip={showReadme ? "Hide README" : "Show README"}
+                    >
+                        <Codicon name="book" sx={{ marginRight: 5 }} /> README
+                        {readmeContent && !showReadme && <ReadmeDot />}
+                    </Button>
                 </>
             )}
             {isLibrary && (
@@ -1187,42 +1198,35 @@ export function PackageOverview(props: PackageOverviewProps) {
                                 <DiagramContent>
                                     {isEmptyIntegration() ? (
                                         <EmptyStateContainer withHero={showHero}>
-                                            <Typography variant="h3" sx={{ marginBottom: "16px" }}>
-                                                Your integration is empty
-                                            </Typography>
-                                            {showHero && (
-                                                <HeroRow>
-                                                    <CopilotHeroBox placeholder="What would you like to build?" />
-                                                </HeroRow>
-                                            )}
-                                            {/* Skipped only while the hero carries the status itself, so
-                                                the two never state it at once. */}
-                                            {!(agentWorking && showHero) && (
-                                                <StatusRow>
-                                                    {agentWorking && (
-                                                        awaitingInput
-                                                            ? <Codicon name="comment-discussion" />
-                                                            : <ProgressRing color={ThemeColors.PRIMARY} sx={{ width: 16, height: 16 }} />
-                                                    )}
-                                                    <Typography
-                                                        variant="body1"
-                                                        sx={{ color: "var(--vscode-descriptionForeground)" }}
-                                                    >
-                                                        {agentWorking
-                                                            ? (awaitingInput ? AWAITING_INPUT_LABEL : "Copilot is working…")
-                                                            : showHero
-                                                                ? "Describe what you want to build, or add an artifact to get started"
-                                                                : "Add an artifact to get started"}
+                                            {showHero ? (
+                                                <CopilotEmptyState onAddArtifactManually={handleAddConstruct} />
+                                            ) : (
+                                                <>
+                                                    <Typography variant="h3" sx={{ marginBottom: "16px" }}>
+                                                        Your integration is empty
                                                     </Typography>
-                                                </StatusRow>
+                                                    <StatusRow>
+                                                        {agentWorking && (
+                                                            awaitingInput
+                                                                ? <Codicon name="comment-discussion" />
+                                                                : <ProgressRing color={ThemeColors.PRIMARY} sx={{ width: 16, height: 16 }} />
+                                                        )}
+                                                        <Typography
+                                                            variant="body1"
+                                                            sx={{ color: "var(--vscode-descriptionForeground)" }}
+                                                        >
+                                                            {agentWorking
+                                                                ? (awaitingInput ? AWAITING_INPUT_LABEL : "Copilot is working…")
+                                                                : "Add an artifact to get started"}
+                                                        </Typography>
+                                                    </StatusRow>
+                                                    <ButtonContainer>
+                                                        <Button appearance="primary" onClick={handleAddConstruct}>
+                                                            <Codicon name="add" sx={{ marginRight: 8 }} /> Add Artifact
+                                                        </Button>
+                                                    </ButtonContainer>
+                                                </>
                                             )}
-                                            <ButtonContainer>
-                                                {/* The header's button, restated where the empty state can
-                                                    centre it — same handler, same enablement. */}
-                                                <Button appearance="primary" onClick={handleAddConstruct}>
-                                                    <Codicon name="add" sx={{ marginRight: 8 }} /> Add Artifact
-                                                </Button>
-                                            </ButtonContainer>
                                         </EmptyStateContainer>
                                     ) : (
                                         <React.Suspense
@@ -1238,7 +1242,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                                 </DiagramContent>
                             )}
                         </DiagramPanel>
-                        {!isLibrary && (
+                        {!isLibrary && showReadme && (
                             <FooterPanel>
                                 <ReadmeHeaderContainer>
                                     <Title variant="h2">README</Title>
@@ -1250,6 +1254,9 @@ export function PackageOverview(props: PackageOverviewProps) {
                                         )}
                                         <Button appearance="icon" onClick={handleEditReadme} buttonSx={{ padding: "4px 8px" }}>
                                             <Icon name="bi-edit" sx={{ marginRight: 8, fontSize: 16 }} /> Edit
+                                        </Button>
+                                        <Button appearance="icon" onClick={() => setShowReadme(false)} buttonSx={{ padding: "4px 8px" }} tooltip="Hide README">
+                                            <Codicon name="close" />
                                         </Button>
                                     </ReadmeButtonContainer>
                                 </ReadmeHeaderContainer>
