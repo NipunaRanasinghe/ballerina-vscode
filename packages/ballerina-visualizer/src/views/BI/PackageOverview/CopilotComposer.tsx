@@ -100,6 +100,24 @@ const riseIn = keyframes`
     to { opacity: 1; transform: none; }
 `;
 
+const OrbButton = styled.button<{ $interactive: boolean }>`
+    position: relative;
+    width: ${ORB_SIZE}px;
+    height: ${ORB_SIZE}px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    outline-offset: 4px;
+    cursor: ${(props: { $interactive: boolean }) => (props.$interactive ? "pointer" : "default")};
+    transition: transform 0.2s ease;
+    &:hover {
+        transform: ${(props: { $interactive: boolean }) => (props.$interactive ? "scale(1.06)" : "none")};
+    }
+    &:active {
+        transform: ${(props: { $interactive: boolean }) => (props.$interactive ? "scale(0.98)" : "none")};
+    }
+`;
+
 const Heading = styled.h2`
     margin: 0;
     font-size: 28px;
@@ -144,25 +162,6 @@ const PromptEcho = styled.p`
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-`;
-
-const ScratchLine = styled.p`
-    margin: 20px 0 0;
-    color: var(--vscode-descriptionForeground);
-    font-size: 13px;
-`;
-
-const LinkButton = styled.button`
-    padding: 0;
-    border: 0;
-    background: none;
-    font: inherit;
-    color: var(--vscode-textLink-foreground);
-    cursor: pointer;
-
-    &:hover {
-        text-decoration: underline;
-    }
 `;
 
 const RunBlock = styled.div`
@@ -498,20 +497,22 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
 
     return (
         <Wrap>
-            <CopilotOrb state={state} colors={colors} size={ORB_SIZE} />
+            <OrbButton
+                type="button"
+                $interactive={showOpenCopilot}
+                disabled={!showOpenCopilot}
+                onClick={showOpenCopilot ? () => openCopilotPanel(rpcClient) : undefined}
+                title={showOpenCopilot ? "Open WSO2 Integration Intelligence" : undefined}
+                aria-label={showOpenCopilot ? "Open WSO2 Integration Intelligence" : undefined}
+            >
+                <CopilotOrb state={state} colors={colors} size={ORB_SIZE} />
+            </OrbButton>
 
             {shownMode === "run" ? (
                 <RunBlock>
                     <Heading>{runHeading}</Heading>
                     {runDetail && <Subtitle $visible={!aiPanelOpen}>{runDetail}</Subtitle>}
                     {submittedPrompt && <PromptEcho>{submittedPrompt}</PromptEcho>}
-                    {showOpenCopilot && (
-                        <ScratchLine>
-                            <LinkButton type="button" onClick={() => openCopilotPanel(rpcClient)}>
-                                Open WSO2 Integration Intelligence
-                            </LinkButton>
-                        </ScratchLine>
-                    )}
                 </RunBlock>
             ) : shownMode === "idle" ? (
                 <IdleBlock>
