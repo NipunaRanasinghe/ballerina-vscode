@@ -20,7 +20,7 @@ import React, { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { keyframes } from "@emotion/react";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
-import { AgentRunStatus, AgentRunState } from "@wso2/ballerina-core";
+import { AgentRunStatus, AgentRunState, SHARED_COMMANDS } from "@wso2/ballerina-core";
 import { MiniChat } from "./MiniChat";
 import { CopilotOrb } from "./CopilotOrb";
 import { useOrbColors } from "./orbTheme";
@@ -369,14 +369,23 @@ export function AgentStatusOrb() {
         }, SNAP_ANIMATION_MS);
     };
 
-    const handleClick = () => {
+    const handleClick = (event: React.MouseEvent) => {
         // Suppress the click that follows a drag; dragStateRef is already
         // cleared on pointerup, so only a stale wasDrag matters here.
-        // Clicking toggles the mini chat overlay; the full panel is one more
-        // click away (the mini's maximize button).
-        if (dragPos === null) {
-            setMiniOpen((open) => !open);
+        // Single click toggles the mini chat; double click opens the full panel,
+        // so let the second click of a double fall through to onDoubleClick.
+        if (dragPos !== null || event.detail >= 2) {
+            return;
         }
+        setMiniOpen((open) => !open);
+    };
+
+    const handleDoubleClick = () => {
+        if (dragPos !== null || !rpcClient) {
+            return;
+        }
+        setMiniOpen(false);
+        rpcClient.getCommonRpcClient().executeCommand({ commands: [SHARED_COMMANDS.OPEN_AI_PANEL] });
     };
 
     // Keep the label pill on-screen and horizontally centered orbs balanced:
@@ -440,11 +449,12 @@ export function AgentStatusOrb() {
             <OrbButton
                 state={state}
                 onClick={handleClick}
+                onDoubleClick={handleDoubleClick}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 title={label ? `WSO2 Integration Intelligence — ${label}` : "WSO2 Integration Intelligence"}
-                aria-label={label ? `WSO2 Integration Intelligence: ${label}. Open the WSO2 Integration Intelligence mini chat.` : "Open the WSO2 Integration Intelligence mini chat"}
+                aria-label={label ? `WSO2 Integration Intelligence: ${label}. Click to open the mini chat, double-click for the full panel.` : "Click to open the WSO2 Integration Intelligence mini chat, double-click for the full panel"}
             >
                 <CopilotOrb state={state} colors={colors} size={ORB_SIZE} />
             </OrbButton>
