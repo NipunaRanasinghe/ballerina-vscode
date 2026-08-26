@@ -33,7 +33,7 @@ import {
 } from "../../../components/AgentStatusOrb/shared";
 import { CopilotOrb } from "../../../components/AgentStatusOrb/CopilotOrb";
 import { useOrbColors } from "../../../components/AgentStatusOrb/orbTheme";
-import { openCopilotPanel, submitPromptToCopilot } from "../../../components/AgentStatusOrb/CopilotHeroBox";
+import { openCopilotPanel, submitPromptToCopilot } from "../../../components/AgentStatusOrb/copilotPanel";
 
 const CONTENT_WIDTH = 620;
 const INPUT_MIN_HEIGHT = 46;
