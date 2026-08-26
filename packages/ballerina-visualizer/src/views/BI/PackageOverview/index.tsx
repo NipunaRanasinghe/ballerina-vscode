@@ -85,17 +85,22 @@ const StatusRow = styled.div`
     margin-bottom: 24px;
 `;
 
-const EmptyStateContainer = styled.div<{ withHero?: boolean }>`
+const EmptyStateContainer = styled.div`
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
+`;
+
+// Overlapping layers so the composer and the fallback crossfade instead of popping.
+const CrossFadeLayer = styled.div<{ $show: boolean; $center?: boolean }>`
+    position: absolute;
+    inset: 0;
     display: flex;
     flex-direction: column;
-    // withHero delegates centering/scrolling to CopilotComposer's own layout.
-    align-items: ${(props: { withHero?: boolean }) => (props.withHero ? "stretch" : "center")};
-    justify-content: ${(props: { withHero?: boolean }) => (props.withHero ? "stretch" : "center")};
+    align-items: ${(props: { $center?: boolean }) => (props.$center ? "center" : "stretch")};
+    justify-content: ${(props: { $center?: boolean }) => (props.$center ? "center" : "stretch")};
+    opacity: ${(props: { $show: boolean }) => (props.$show ? 1 : 0)};
+    pointer-events: ${(props: { $show: boolean }) => (props.$show ? "auto" : "none")};
+    transition: opacity 240ms ease;
 `;
 
 const PageLayout = styled.div`
@@ -852,6 +857,20 @@ interface PackageOverviewProps {
     isICPSupported?: boolean;
 }
 
+/** Keeps a node mounted for `delayMs` after it should hide, so it can animate out. */
+function useDelayedUnmount(shouldRender: boolean, delayMs: number): boolean {
+    const [mounted, setMounted] = useState(shouldRender);
+    useEffect(() => {
+        if (shouldRender) {
+            setMounted(true);
+            return;
+        }
+        const timer = setTimeout(() => setMounted(false), delayMs);
+        return () => clearTimeout(timer);
+    }, [shouldRender, delayMs]);
+    return mounted;
+}
+
 export function PackageOverview(props: PackageOverviewProps) {
     const { projectPath, isInDevant, isICPSupported } = props;
     const { rpcClient } = useRpcContext();
@@ -872,6 +891,9 @@ export function PackageOverview(props: PackageOverviewProps) {
     // Show the composer when the panel is closed, and also while a run is active even with the
     // panel open — so the run status looks the same either way (it renders only its run-state then).
     const showHero = !isLibrary && (!aiPanelOpen || agentWorking);
+    // Keep the outgoing surface mounted through the 240ms crossfade.
+    const composerMounted = useDelayedUnmount(showHero, 260);
+    const fallbackMounted = useDelayedUnmount(!isLibrary && !showHero, 260);
 
     const fetchContext = useCallback(() => {
         rpcClient
@@ -1258,27 +1280,23 @@ export function PackageOverview(props: PackageOverviewProps) {
                             {!isLibrary && (
                                 <DiagramContent>
                                     {isEmptyIntegration() ? (
-                                        <EmptyStateContainer withHero={showHero}>
-                                            {showHero ? (
-                                                <CopilotComposer onAddArtifactManually={handleAddConstruct} />
-                                            ) : (
-                                                <>
+                                        <EmptyStateContainer>
+                                            {composerMounted && (
+                                                <CrossFadeLayer $show={showHero}>
+                                                    <CopilotComposer onAddArtifactManually={handleAddConstruct} hiding={!showHero} />
+                                                </CrossFadeLayer>
+                                            )}
+                                            {fallbackMounted && (
+                                                <CrossFadeLayer $show={!showHero} $center>
                                                     <Typography variant="h3" sx={{ marginBottom: "16px" }}>
                                                         Your integration is empty
                                                     </Typography>
                                                     <StatusRow>
-                                                        {agentWorking && (
-                                                            awaitingInput
-                                                                ? <Codicon name="comment-discussion" />
-                                                                : <ProgressRing color={ThemeColors.PRIMARY} sx={{ width: 16, height: 16 }} />
-                                                        )}
                                                         <Typography
                                                             variant="body1"
                                                             sx={{ color: "var(--vscode-descriptionForeground)" }}
                                                         >
-                                                            {agentWorking
-                                                                ? (awaitingInput ? "Needs your input" : "Working on it…")
-                                                                : "Add an artifact to get started"}
+                                                            Add an artifact to get started
                                                         </Typography>
                                                     </StatusRow>
                                                     <ButtonContainer>
@@ -1286,7 +1304,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                                                             <Codicon name="add" sx={{ marginRight: 8 }} /> Add Artifact
                                                         </Button>
                                                     </ButtonContainer>
-                                                </>
+                                                </CrossFadeLayer>
                                             )}
                                         </EmptyStateContainer>
                                     ) : (

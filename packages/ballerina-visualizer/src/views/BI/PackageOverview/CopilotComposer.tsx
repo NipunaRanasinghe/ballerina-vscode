@@ -370,6 +370,8 @@ const MANUAL_BUTTON_SX = {
 
 interface CopilotComposerProps {
     onAddArtifactManually: () => void;
+    /** True while the parent is fading this out — freeze the content so it fades as one piece. */
+    hiding?: boolean;
 }
 
 /**
@@ -377,7 +379,7 @@ interface CopilotComposerProps {
  * this page. Only rendered while the integration has no artifacts; the moment
  * one exists, the page shows the diagram instead and this unmounts.
  */
-export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps) {
+export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotComposerProps) {
     const { rpcClient } = useRpcContext();
     const [status, setStatus] = useState<AgentRunStatus | null>(null);
     const [text, setText] = useState("");
@@ -433,6 +435,15 @@ export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps)
     // opening the panel and starting it takes long enough to read as a dead beat.
     const showRun = working || submittedPrompt !== undefined;
 
+    // Which block to render — frozen while hiding so the whole surface fades out
+    // intact instead of the inner content vanishing and leaving the bare orb.
+    const mode: "run" | "idle" | "none" = showRun ? "run" : aiPanelOpen ? "none" : "idle";
+    const modeRef = useRef(mode);
+    if (!hiding) {
+        modeRef.current = mode;
+    }
+    const shownMode = hiding ? modeRef.current : mode;
+
     useEffect(() => {
         if (working) {
             runStartedRef.current = true;
@@ -487,7 +498,7 @@ export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps)
         <Wrap>
             <CopilotOrb state={state} colors={colors} size={ORB_SIZE} />
 
-            {showRun ? (
+            {shownMode === "run" ? (
                 <RunBlock>
                     <Heading>{runHeading}</Heading>
                     {runDetail && <Subtitle $visible={!aiPanelOpen}>{runDetail}</Subtitle>}
@@ -500,7 +511,7 @@ export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps)
                         </ScratchLine>
                     )}
                 </RunBlock>
-            ) : (
+            ) : shownMode === "idle" ? (
                 <IdleBlock>
                     <AssistantName>WSO2 Integration Intelligence</AssistantName>
                     <Heading>What would you like to build?</Heading>
@@ -594,7 +605,7 @@ export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps)
                         </Button>
                     </ManualRow>
                 </IdleBlock>
-            )}
+            ) : null}
         </Wrap>
     );
 }
