@@ -236,9 +236,20 @@ const ReadmeButtonContainer = styled.div`
     gap: 2px;
 `;
 
-const ViewToggleWrap = styled.span`
-    display: inline-flex;
-    align-self: center;
+const ViewTabs = styled.div`
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+`;
+
+const ViewTab = styled.div<{ active?: boolean }>`
+    cursor: ${(props: { active?: boolean }) => (props.active ? "default" : "pointer")};
+    opacity: ${(props: { active?: boolean }) => (props.active ? 1 : 0.45)};
+    transition: opacity 0.1s;
+
+    &:hover {
+        opacity: ${(props: { active?: boolean }) => (props.active ? 1 : 0.75)};
+    }
 `;
 
 const ReadmeContent = styled.div`
@@ -1126,21 +1137,25 @@ export function PackageOverview(props: PackageOverviewProps) {
         </>
     );
 
-    const readmeToggle = !isLibrary ? (
-        <ViewToggleWrap>
-            <Button
-                appearance="icon"
-                onClick={() => setOverviewView((v) => (v === "readme" ? "design" : "readme"))}
-                buttonSx={{ padding: "4px 8px" }}
-                tooltip={overviewView === "readme" ? "Back to design" : "View README"}
+    const viewSwitch = !isLibrary ? (
+        <ViewTabs role="tablist" aria-label="Overview view">
+            <ViewTab
+                role="tab"
+                aria-selected={overviewView === "design"}
+                active={overviewView === "design"}
+                onClick={() => setOverviewView("design")}
             >
-                {overviewView === "readme" ? (
-                    <><Codicon name="circuit-board" sx={{ marginRight: 5 }} /> Design</>
-                ) : (
-                    <><Codicon name="book" sx={{ marginRight: 5 }} /> README</>
-                )}
-            </Button>
-        </ViewToggleWrap>
+                <Title variant="h2">Design</Title>
+            </ViewTab>
+            <ViewTab
+                role="tab"
+                aria-selected={overviewView === "readme"}
+                active={overviewView === "readme"}
+                onClick={() => setOverviewView("readme")}
+            >
+                <Title variant="h2">Readme</Title>
+            </ViewTab>
+        </ViewTabs>
     ) : undefined;
 
     return (
@@ -1150,7 +1165,6 @@ export function PackageOverview(props: PackageOverviewProps) {
                     <TitleBar
                         title={integrationTitle}
                         subtitle={isLibrary ? "Library" : "Integration"}
-                        subtitleElement={readmeToggle}
                         onBack={handleBack}
                         actions={headerActions}
                         onTitleEdit={handleTitleUpdate}
@@ -1167,7 +1181,6 @@ export function PackageOverview(props: PackageOverviewProps) {
                                 <ProjectTitle>{integrationTitle}</ProjectTitle>
                             </EditableTitle>
                             <ProjectSubtitle>{isLibrary ? "Library" : "Integration"}</ProjectSubtitle>
-                            {readmeToggle}
                         </TitleContainer>
                         <HeaderControls>
                             <UndoRedoGroup key={Date.now()} />
@@ -1180,7 +1193,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                         {overviewView === "readme" && !isLibrary ? (
                             <ReadmePanel>
                                 <ReadmeHeaderContainer>
-                                    <Title variant="h2">README</Title>
+                                    {viewSwitch}
                                     <ReadmeButtonContainer>
                                         {readmeContent && isEmptyIntegration() && (
                                             <Button appearance="icon" onClick={handleGenerateWithReadme} buttonSx={{ padding: "4px 8px" }}>
@@ -1227,7 +1240,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                             )}
                             {!isLibrary && (
                                 <DiagramHeaderContainer withPadding={true}>
-                                    <Title variant="h2">Design</Title>
+                                    {viewSwitch}
                                     {/* An empty integration has its own copy of this below,
                                         centred in the empty state, so only one is ever on screen. */}
                                     {!isEmptyIntegration() && (
