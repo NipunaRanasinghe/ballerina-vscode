@@ -317,9 +317,11 @@ const Card = styled.button`
     text-align: left;
     cursor: pointer;
     font-family: inherit;
+    transition: border-color 150ms ease, background-color 150ms ease;
 
     &:hover {
-        background: var(--vscode-toolbar-hoverBackground);
+        border-color: ${ThemeColors.PRIMARY};
+        background: var(--vscode-list-hoverBackground);
     }
 `;
 
