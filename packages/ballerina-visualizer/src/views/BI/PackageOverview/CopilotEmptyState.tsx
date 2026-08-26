@@ -21,7 +21,7 @@ import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { AgentRunStatus, AttachmentStatus } from "@wso2/ballerina-core";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
-import { Button, Codicon, Icon, ThemeColors } from "@wso2/ui-toolkit";
+import { Button, Icon, ThemeColors } from "@wso2/ui-toolkit";
 import ModeToggle, { AgentMode } from "../../AIPanel/components/AIChatInput/ModeToggle";
 import { useAttachments } from "../../AIPanel/components/AIChatInput/hooks/useAttachments";
 import { acceptResolver, handleAttachmentSelection } from "../../AIPanel/utils/attachment/attachmentManager";
@@ -48,6 +48,7 @@ interface ExamplePrompt {
     name: string;
     description: string;
     icon: string;
+    isCodicon?: boolean;
     prompt: string;
 }
 
@@ -56,25 +57,26 @@ const EXAMPLES: ExamplePrompt[] = [
         name: "REST API",
         description: "Create and list orders over HTTP",
         icon: "globe",
-        prompt: "Create a REST API with endpoints to create and list orders, backed by an in-memory table.",
+        prompt: "Create a REST API to create and list orders.",
     },
     {
-        name: "Scheduled Job",
-        description: "Runs on a timer, no trigger needed",
-        icon: "watch",
-        prompt: "Create a scheduled job that runs every hour and fetches the latest currency exchange rates.",
+        name: "AI agent",
+        description: "Answer questions from your docs",
+        icon: "bi-ai-agent",
+        isCodicon: false,
+        prompt: "Create an AI agent that answers questions from my Markdown docs.",
     },
     {
-        name: "File Processor",
-        description: "Watches a folder for new files",
-        icon: "new-file",
-        prompt: "Create an integration that watches a directory for new CSV files and loads each row into a database table.",
+        name: "Connect Salesforce",
+        description: "Sync new leads into a database",
+        icon: "database",
+        prompt: "Sync new Salesforce leads into a MySQL database.",
     },
     {
-        name: "Webhook Handler",
-        description: "Reacts to events from another system",
-        icon: "radio-tower",
-        prompt: "Create a service that receives GitHub webhook events and posts a summary message to a Slack channel.",
+        name: "Transform data",
+        description: "Map an order to an invoice",
+        icon: "git-compare",
+        prompt: "Map an incoming order to an invoice with a data mapper.",
     },
 ];
 
@@ -540,11 +542,16 @@ export function CopilotEmptyState({ onAddArtifactManually }: CopilotEmptyStatePr
                     </ComposerRow>
 
                     <ExamplesBlock>
-                        <ExamplesLabel>Examples</ExamplesLabel>
+                        <ExamplesLabel>Try one of these</ExamplesLabel>
                         <Cards>
                             {EXAMPLES.map((example) => (
                                 <Card key={example.name} type="button" onClick={() => fillExample(example.prompt)}>
-                                    <Codicon name={example.icon} sx={{ fontSize: 18, color: "var(--vscode-foreground)" }} />
+                                    <Icon
+                                        name={example.icon}
+                                        isCodicon={example.isCodicon ?? true}
+                                        sx={{ color: "var(--vscode-foreground)" }}
+                                        iconSx={{ fontSize: "18px", color: "var(--vscode-foreground)" }}
+                                    />
                                     <CardText>
                                         <CardName>{example.name}</CardName>
                                         <CardDescription>{example.description}</CardDescription>
