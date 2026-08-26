@@ -44,7 +44,7 @@ import { TitleBar } from "../../../components/TitleBar";
 import { PublishToCentralButton } from "./PublishToCentralButton";
 import { LibraryOverview } from "./LibraryOverview";
 import { CopilotComposer } from "./CopilotComposer";
-import { AWAITING_INPUT_LABEL, useAgentRunState, useAiPanelOpen } from "../../../components/AgentStatusOrb/shared";
+import { useAgentRunState, useAiPanelOpen } from "../../../components/AgentStatusOrb/shared";
 
 /** The diagram engine (`@wso2/component-diagram` and its layout stack) is the
  *  heaviest thing this view renders. Kept out of the overview's chunk so the page —
@@ -1262,7 +1262,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                                                             sx={{ color: "var(--vscode-descriptionForeground)" }}
                                                         >
                                                             {agentWorking
-                                                                ? (awaitingInput ? AWAITING_INPUT_LABEL : "Copilot is working…")
+                                                                ? (awaitingInput ? "Needs your input" : "Working on it…")
                                                                 : "Add an artifact to get started"}
                                                         </Typography>
                                                     </StatusRow>

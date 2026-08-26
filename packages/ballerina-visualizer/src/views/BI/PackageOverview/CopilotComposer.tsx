@@ -19,7 +19,7 @@
 import { CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { AgentRunStatus, AttachmentStatus } from "@wso2/ballerina-core";
+import { AgentRunStatus, AttachmentStatus, SHARED_COMMANDS } from "@wso2/ballerina-core";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { Button, Icon, ThemeColors } from "@wso2/ui-toolkit";
 import ModeToggle, { AgentMode } from "../../AIPanel/components/AIChatInput/ModeToggle";
@@ -28,7 +28,6 @@ import { acceptResolver, handleAttachmentSelection } from "../../AIPanel/utils/a
 import AttachmentBox from "../../AIPanel/components/AttachmentBox";
 import {
     AmbientFrame,
-    AWAITING_INPUT_LABEL,
     ORB_SIZE,
     subscribeAgentRunStatus,
     syncOrbThemeFromSetting,
@@ -387,6 +386,15 @@ export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps)
         return subscribeAgentRunStatus(rpcClient, setStatus);
     }, [rpcClient]);
 
+    // This composer reports run status inline, so silence the redundant status-bar item while mounted.
+    useEffect(() => {
+        const setInline = (active: boolean) => {
+            rpcClient?.getCommonRpcClient().executeCommand({ commands: [SHARED_COMMANDS.SET_COPILOT_INLINE_STATUS, active] });
+        };
+        setInline(true);
+        return () => setInline(false);
+    }, [rpcClient]);
+
     useLayoutEffect(() => {
         const input = inputRef.current;
         if (!input) {
@@ -403,7 +411,6 @@ export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps)
 
     const state = status?.state ?? "idle";
     const working = state !== "idle";
-    const running = state === "running";
     // The transition starts on click, not when the extension reports the run —
     // opening the panel and starting it takes long enough to read as a dead beat.
     const showRun = working || submittedPrompt !== undefined;
@@ -429,13 +436,13 @@ export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps)
 
     const runHeading =
         state === "awaiting-input"
-            ? AWAITING_INPUT_LABEL
+            ? "Needs your input"
             : state === "error"
                 ? "Something went wrong"
                 : state === "completed"
-                    ? "All done"
-                    : "Building your integration…";
-    const runDetail = state === "completed" ? undefined : status?.label ?? (running ? "Working on it…" : undefined);
+                    ? "Done"
+                    : "Working on it…";
+    const runDetail = state === "completed" ? undefined : status?.label;
     const showOpenCopilot = !aiPanelOpen;
 
     const send = (prompt: string) => {

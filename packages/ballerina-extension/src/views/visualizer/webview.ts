@@ -30,6 +30,7 @@ import { MACHINE_VIEW, isPathInside, getIntegrationCreationCopy } from "@wso2/ba
 import { refreshDataMapper } from "../../rpc-managers/data-mapper/utils";
 import { AiPanelWebview } from "../ai-panel/webview";
 import { approvalViewManager } from "../../features/ai/state/ApprovalViewManager";
+import { agentStatusManager } from "../../features/ai/state/AgentStatusManager";
 import { StateMachinePopup } from "../../stateMachinePopup";
 import { clearFormState } from "../../rpc-managers/bi-diagram/form-state";
 import { isInWI } from "../../utils/config";
@@ -364,6 +365,8 @@ export class VisualizerWebview {
 
     public dispose() {
         approvalViewManager.onVisualizerClosed();
+        // The overview composer can't send its unmount signal once the webview is gone.
+        agentStatusManager.setInlineStatusVisible(false);
         clearFormState();
 
         VisualizerWebview.currentPanel = undefined;

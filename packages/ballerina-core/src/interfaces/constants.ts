@@ -25,7 +25,8 @@ export const SHARED_COMMANDS = {
     OPEN_SERVICE_FORM: 'ballerina.open.service.form',
     OPEN_AI_PANEL: 'ballerina.open.ai.panel',
     CLOSE_AI_PANEL: 'ballerina.close.ai.panel',
-    OPEN_AGENT_CHAT: 'ballerina.open.agent.chat'
+    OPEN_AGENT_CHAT: 'ballerina.open.agent.chat',
+    SET_COPILOT_INLINE_STATUS: 'ballerina.copilot.setInlineStatusActive'
 }
 
 export const BI_COMMANDS = {
