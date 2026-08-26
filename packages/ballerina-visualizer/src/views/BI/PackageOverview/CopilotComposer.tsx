@@ -32,6 +32,7 @@ import {
     subscribeAgentRunStatus,
     syncOrbThemeFromSetting,
     useAiPanelOpen,
+    useAmbientCopilotPresence,
     useSuppressAgentStatusOrb,
 } from "../../../components/AgentStatusOrb/shared";
 import { CopilotOrb } from "../../../components/AgentStatusOrb/CopilotOrb";
@@ -397,6 +398,7 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
 
     // One Copilot surface per view — the floating orb stands down while this is mounted.
     useSuppressAgentStatusOrb();
+    useAmbientCopilotPresence();
 
     useEffect(() => {
         if (!rpcClient) {

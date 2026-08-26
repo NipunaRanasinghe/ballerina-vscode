@@ -450,6 +450,48 @@ export function subscribeOrbSuppressed(listener: (suppressed: boolean) => void):
     };
 }
 
+// ---------------------------------------------------------------------------
+// Ambient Copilot presence.
+//
+// True while an in-context opener (the floating orb or the overview composer)
+// is on screen. The extension mirrors this into `ballerina.copilotAmbientPresent`
+// so the legacy editor-title icon only shows where no ambient surface exists.
+// ---------------------------------------------------------------------------
+
+let ambientPresenceCount = 0;
+const ambientPresenceListeners = new Set<(present: boolean) => void>();
+
+function notifyAmbientPresence() {
+    ambientPresenceListeners.forEach((listener) => listener(ambientPresenceCount > 0));
+}
+
+/**
+ * Registers an ambient Copilot surface while the caller is mounted and `present`
+ * holds. Layout effect so presence lands in the same frame as the render, matching
+ * orb suppression and avoiding a one-frame flash of the legacy icon.
+ */
+export function useAmbientCopilotPresence(present = true): void {
+    useLayoutEffect(() => {
+        if (!present) {
+            return;
+        }
+        ambientPresenceCount++;
+        notifyAmbientPresence();
+        return () => {
+            ambientPresenceCount--;
+            notifyAmbientPresence();
+        };
+    }, [present]);
+}
+
+export function subscribeAmbientCopilotPresence(listener: (present: boolean) => void): () => void {
+    ambientPresenceListeners.add(listener);
+    listener(ambientPresenceCount > 0);
+    return () => {
+        ambientPresenceListeners.delete(listener);
+    };
+}
+
 // theme1: WebGL core + brand ring (default). theme2: CSS sphere, no ring — also
 // the fallback when theme1 can't render. Add a theme by appending it here.
 export const ORB_THEMES = ["theme1", "theme2"] as const;

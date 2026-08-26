@@ -35,6 +35,7 @@ import {
     subscribeOrbSuppressed,
     subscribeMiniChatOpen,
     syncOrbThemeFromSetting,
+    useAmbientCopilotPresence,
 } from "./shared";
 import { createMiniChatPrompt, MiniChatPrompt } from "./promptHandoff";
 
@@ -285,6 +286,8 @@ export function AgentStatusOrb() {
     // Resolve orb colors before any early return so the hook order stays stable
     // across renders (status is null while the orb is hidden).
     const colors = useOrbColors(status?.state ?? "idle");
+
+    useAmbientCopilotPresence(!orbHidden);
 
     if (orbHidden) {
         return null;

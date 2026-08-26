@@ -100,6 +100,10 @@ export function activateAIFeatures(ballerinaExternalInstance: BallerinaExtension
             commands.registerCommand(
                 SHARED_COMMANDS.SET_COPILOT_INLINE_STATUS,
                 (active: boolean) => agentStatusManager.setInlineStatusVisible(!!active)
+            ),
+            commands.registerCommand(
+                SHARED_COMMANDS.SET_COPILOT_AMBIENT_PRESENT,
+                (present: boolean) => commands.executeCommand('setContext', 'ballerina.copilotAmbientPresent', !!present)
             )
         );
     }

@@ -365,8 +365,9 @@ export class VisualizerWebview {
 
     public dispose() {
         approvalViewManager.onVisualizerClosed();
-        // The overview composer can't send its unmount signal once the webview is gone.
+        // The overview composer and orb can't send their unmount signals once the webview is gone.
         agentStatusManager.setInlineStatusVisible(false);
+        vscode.commands.executeCommand('setContext', 'ballerina.copilotAmbientPresent', false);
         clearFormState();
 
         VisualizerWebview.currentPanel = undefined;
