@@ -351,7 +351,7 @@ const MANUAL_BUTTON_SX = {
     borderRadius: "6px",
 } as CSSProperties;
 
-interface CopilotEmptyStateProps {
+interface CopilotComposerProps {
     onAddArtifactManually: () => void;
 }
 
@@ -360,7 +360,7 @@ interface CopilotEmptyStateProps {
  * this page. Only rendered while the integration has no artifacts; the moment
  * one exists, the page shows the diagram instead and this unmounts.
  */
-export function CopilotEmptyState({ onAddArtifactManually }: CopilotEmptyStateProps) {
+export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps) {
     const { rpcClient } = useRpcContext();
     const [status, setStatus] = useState<AgentRunStatus | null>(null);
     const [text, setText] = useState("");

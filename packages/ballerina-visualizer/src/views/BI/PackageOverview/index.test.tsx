@@ -124,9 +124,9 @@ jest.mock("./LibraryOverview", () => ({ __esModule: true, LibraryOverview: (): n
 // Stubbed: it owns the shader-orb rendering (real WebGL, unavailable in jsdom) and its own
 // status-orb wiring, none of which this suite cares about. Its "Add Artifact manually" button
 // is kept, wired to the same prop, since that IS the click target these tests assert on.
-jest.mock("./CopilotEmptyState", () => ({
+jest.mock("./CopilotComposer", () => ({
     __esModule: true,
-    CopilotEmptyState: ({ onAddArtifactManually }: any) => (
+    CopilotComposer: ({ onAddArtifactManually }: any) => (
         <div>
             <div>What would you like to build?</div>
             <button onClick={onAddArtifactManually}>Add Artifact manually</button>

@@ -43,7 +43,7 @@ import { TopNavigationBar } from "../../../components/TopNavigationBar";
 import { TitleBar } from "../../../components/TitleBar";
 import { PublishToCentralButton } from "./PublishToCentralButton";
 import { LibraryOverview } from "./LibraryOverview";
-import { CopilotEmptyState } from "./CopilotEmptyState";
+import { CopilotComposer } from "./CopilotComposer";
 import { AWAITING_INPUT_LABEL, useAgentRunState, useAiPanelOpen } from "../../../components/AgentStatusOrb/shared";
 
 /** The diagram engine (`@wso2/component-diagram` and its layout stack) is the
@@ -93,7 +93,7 @@ const EmptyStateContainer = styled.div<{ withHero?: boolean }>`
     bottom: 0;
     display: flex;
     flex-direction: column;
-    // withHero delegates centering/scrolling to CopilotEmptyState's own layout.
+    // withHero delegates centering/scrolling to CopilotComposer's own layout.
     align-items: ${(props: { withHero?: boolean }) => (props.withHero ? "stretch" : "center")};
     justify-content: ${(props: { withHero?: boolean }) => (props.withHero ? "stretch" : "center")};
 `;
@@ -1245,7 +1245,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                                     {isEmptyIntegration() ? (
                                         <EmptyStateContainer withHero={showHero}>
                                             {showHero ? (
-                                                <CopilotEmptyState onAddArtifactManually={handleAddConstruct} />
+                                                <CopilotComposer onAddArtifactManually={handleAddConstruct} />
                                             ) : (
                                                 <>
                                                     <Typography variant="h3" sx={{ marginBottom: "16px" }}>
