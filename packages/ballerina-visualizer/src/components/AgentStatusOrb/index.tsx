@@ -16,29 +16,25 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
-import { css, keyframes } from "@emotion/react";
+import { keyframes } from "@emotion/react";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { AgentRunStatus, AgentRunState } from "@wso2/ballerina-core";
-import { Icon } from "@wso2/ui-toolkit";
-import { ShaderOrb } from "./ShaderOrb";
 import { MiniChat } from "./MiniChat";
+import { CopilotOrb } from "./CopilotOrb";
 import { useOrbColors } from "./orbTheme";
 import {
     Anchor,
     ANCHOR_STORAGE_KEY,
     EDGE_MARGIN,
     loadAnchor,
-    ORB_ENERGY,
     ORB_SIZE,
-    Sphere,
-    Gloss,
-    IconOverlay,
     activeStateLabel,
     subscribeAgentRunStatus,
     subscribeOrbSuppressed,
     subscribeMiniChatOpen,
+    syncOrbThemeFromSetting,
 } from "./shared";
 import { createMiniChatPrompt, MiniChatPrompt } from "./promptHandoff";
 
@@ -98,11 +94,6 @@ function nearestAnchor(x: number, y: number): Anchor {
     return `${vertical}-${horizontal}` as Anchor;
 }
 
-const rotate = keyframes`
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-`;
-
 const breathe = keyframes`
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.12); }
@@ -117,11 +108,6 @@ const bloom = keyframes`
 const fadeIn = keyframes`
     from { opacity: 0; transform: translateX(6px); }
     to { opacity: 1; transform: translateX(0); }
-`;
-
-const haloPulse = keyframes`
-    0%, 100% { opacity: 0.25; transform: scale(1); }
-    50% { opacity: 0.6; transform: scale(1.18); }
 `;
 
 const Wrapper = styled.div`
@@ -201,7 +187,6 @@ const InviteDismiss = styled.button`
 
 interface OrbStyleProps {
     state: AgentRunState;
-    colors: [string, string, string];
 }
 
 const OrbButton = styled.button<{ state: AgentRunState }>`
@@ -233,68 +218,6 @@ const OrbButton = styled.button<{ state: AgentRunState }>`
     }
 `;
 
-const Halo = styled.div<{ colors: [string, string, string] }>`
-    position: absolute;
-    inset: -16px;
-    border-radius: 50%;
-    background: radial-gradient(
-        circle,
-        ${(props: Pick<OrbStyleProps, "colors">) => props.colors[1]} 0%,
-        transparent 70%
-    );
-    animation: ${haloPulse} 1.8s ease-in-out infinite;
-    pointer-events: none;
-    @media (prefers-reduced-motion: reduce) {
-        animation: none;
-        opacity: 0.4;
-    }
-`;
-
-const Aura = styled.div<{ colors: [string, string, string]; state: AgentRunState }>`
-    position: absolute;
-    inset: -6px;
-    border-radius: 50%;
-    background: conic-gradient(
-        from 0deg,
-        ${(props: Pick<OrbStyleProps, "colors">) => `${props.colors[0]}, ${props.colors[1]}, ${props.colors[2]}, ${props.colors[0]}`}
-    );
-    filter: blur(8px);
-    opacity: ${(props: Pick<OrbStyleProps, "state">) => (props.state === "idle" ? 0.45 : props.state === "running" ? 1 : 0.85)};
-    ${(props: Pick<OrbStyleProps, "state">) =>
-        props.state === "running"
-            ? css`animation: ${rotate} 2.8s linear infinite;`
-            : props.state === "idle"
-                ? css`animation: ${rotate} 14s linear infinite;`
-                : css`animation: ${rotate} 9s linear infinite;`}
-    @media (prefers-reduced-motion: reduce) {
-        animation: none;
-    }
-`;
-
-/** Thin rim at the sphere's edge — a soft on-accent highlight, theme-driven. */
-const BrandRing = styled.div`
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    border: 1.5px solid color-mix(in srgb, var(--vscode-button-foreground) 35%, transparent);
-    pointer-events: none;
-`;
-
-/** Brighter arc traveling the ring while the agent runs. */
-const SpinArc = styled.div`
-    position: absolute;
-    inset: -2px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    border-top-color: var(--vscode-button-foreground);
-    animation: ${rotate} 1.1s linear infinite;
-    pointer-events: none;
-    @media (prefers-reduced-motion: reduce) {
-        display: none;
-    }
-`;
-
-
 export function AgentStatusOrb() {
     const { rpcClient } = useRpcContext();
     const [status, setStatus] = useState<AgentRunStatus | null>(null);
@@ -316,14 +239,11 @@ export function AgentStatusOrb() {
     const miniPromptRef = useRef<MiniChatPrompt | undefined>(undefined);
     /** Forces a fresh mini instance when a diagram launches it while already open. */
     const [miniChatKey, setMiniChatKey] = useState(0);
-    /** WebGL unavailable — render the CSS gradient sphere instead. */
-    const [webglFailed, setWebglFailed] = useState(false);
-    const handleWebglFailed = useCallback(() => setWebglFailed(true), []);
-
     useEffect(() => {
         if (!rpcClient) {
             return;
         }
+        syncOrbThemeFromSetting(rpcClient);
         return subscribeAgentRunStatus(rpcClient, setStatus);
     }, [rpcClient]);
 
@@ -526,28 +446,7 @@ export function AgentStatusOrb() {
                 title={label ? `WSO2 Integration Intelligence — ${label}` : "WSO2 Integration Intelligence"}
                 aria-label={label ? `WSO2 Integration Intelligence: ${label}. Open the WSO2 Integration Intelligence mini chat.` : "Open the WSO2 Integration Intelligence mini chat"}
             >
-                {(state === "running" || state === "awaiting-input") && <Halo colors={colors} />}
-                <Aura colors={colors} state={state} />
-                {webglFailed ? (
-                    <Sphere colors={colors} energy={ORB_ENERGY[state]} />
-                ) : (
-                    <ShaderOrb
-                        colors={colors}
-                        energy={ORB_ENERGY[state]}
-                        size={ORB_SIZE}
-                        onContextFailed={handleWebglFailed}
-                    />
-                )}
-                <Gloss />
-                <BrandRing />
-                {state === "running" && <SpinArc />}
-                <IconOverlay>
-                    <Icon
-                        name="bi-ai-chat"
-                        sx={{ width: 26, height: 26 }}
-                        iconSx={{ fontSize: "26px", color: "var(--vscode-button-foreground)", cursor: "inherit" }}
-                    />
-                </IconOverlay>
+                <CopilotOrb state={state} colors={colors} size={ORB_SIZE} />
             </OrbButton>
         </Wrapper>
         </>

@@ -16,23 +16,47 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
-import { useRpcContext } from "@wso2/ballerina-rpc-client";
+import { BallerinaRpcClient, useRpcContext } from "@wso2/ballerina-rpc-client";
 import { SHARED_COMMANDS, AgentRunStatus } from "@wso2/ballerina-core";
 import { Codicon, Icon } from "@wso2/ui-toolkit";
-import { ShaderOrb } from "./ShaderOrb";
+import { CopilotOrb } from "./CopilotOrb";
 import { useOrbColors } from "./orbTheme";
 import {
-    ORB_ENERGY,
-    Sphere,
-    Gloss,
-    IconOverlay,
     activeStateLabel,
     AmbientFrame,
     useSuppressAgentStatusOrb,
     subscribeAgentRunStatus,
 } from "./shared";
+
+export function openCopilotPanel(rpcClient: BallerinaRpcClient | undefined): void {
+    rpcClient?.getCommonRpcClient().executeCommand({ commands: [SHARED_COMMANDS.OPEN_AI_PANEL] });
+}
+
+export interface CopilotPromptOptions {
+    hiddenContext?: string;
+}
+
+/** Shared by every inline "ask Copilot" surface so they open the panel identically. */
+export function submitPromptToCopilot(
+    rpcClient: BallerinaRpcClient | undefined,
+    prompt: string,
+    options?: CopilotPromptOptions
+): boolean {
+    const trimmed = prompt.trim();
+    if (!trimmed) {
+        openCopilotPanel(rpcClient);
+        return false;
+    }
+    rpcClient?.getCommonRpcClient().executeCommand({
+        commands: [
+            SHARED_COMMANDS.OPEN_AI_PANEL,
+            { type: "text", text: trimmed, planMode: false, autoSubmit: true, ...options },
+        ],
+    });
+    return true;
+}
 
 /**
  * Inline "ask the Copilot" prompt box in the package overview's design panel,
@@ -55,14 +79,6 @@ const Box = styled.div<{ active: boolean }>`
     background: var(--vscode-editorWidget-background);
     cursor: ${(props: { active: boolean }) => (props.active ? "pointer" : "text")};
 `;
-
-const OrbHolder = styled.div`
-    position: relative;
-    width: ${HERO_ORB_SIZE}px;
-    height: ${HERO_ORB_SIZE}px;
-    flex: none;
-`;
-
 
 const PromptInput = styled.input`
     flex: 1;
@@ -126,9 +142,6 @@ export function CopilotHeroBox({ placeholder }: { placeholder: string }) {
     const { rpcClient } = useRpcContext();
     const [status, setStatus] = useState<AgentRunStatus | null>(null);
     const [text, setText] = useState("");
-    /** WebGL unavailable — render the CSS gradient sphere instead. */
-    const [webglFailed, setWebglFailed] = useState(false);
-    const handleWebglFailed = useCallback(() => setWebglFailed(true), []);
     const inputRef = useRef<HTMLInputElement | null>(null);
 
     useSuppressAgentStatusOrb();
@@ -148,20 +161,12 @@ export function CopilotHeroBox({ placeholder }: { placeholder: string }) {
     const colors = useOrbColors(state);
     const label = active && status ? activeStateLabel(status) : null;
 
-    const openCopilot = () => {
-        rpcClient?.getCommonRpcClient().executeCommand({ commands: [SHARED_COMMANDS.OPEN_AI_PANEL] });
-    };
+    const openCopilot = () => openCopilotPanel(rpcClient);
 
     const submit = () => {
-        const prompt = text.trim();
-        if (!prompt) {
-            openCopilot();
-            return;
+        if (submitPromptToCopilot(rpcClient, text)) {
+            setText("");
         }
-        rpcClient?.getCommonRpcClient().executeCommand({
-            commands: [SHARED_COMMANDS.OPEN_AI_PANEL, { type: "text", text: prompt, planMode: false, autoSubmit: true }],
-        });
-        setText("");
     };
 
     return (
@@ -179,26 +184,7 @@ export function CopilotHeroBox({ placeholder }: { placeholder: string }) {
                 }}
                 aria-label={label ? `WSO2 Integration Intelligence: ${label}. Open the WSO2 Integration Intelligence chat.` : undefined}
             >
-                <OrbHolder>
-                    {webglFailed ? (
-                        <Sphere colors={colors} energy={ORB_ENERGY[state]} />
-                    ) : (
-                        <ShaderOrb
-                            colors={colors}
-                            energy={ORB_ENERGY[state]}
-                            size={HERO_ORB_SIZE}
-                            onContextFailed={handleWebglFailed}
-                        />
-                    )}
-                    <Gloss />
-                    <IconOverlay>
-                        <Icon
-                            name="bi-ai-chat"
-                            sx={{ width: 20, height: 20 }}
-                            iconSx={{ fontSize: "20px", color: "var(--vscode-button-foreground)", cursor: "inherit" }}
-                        />
-                    </IconOverlay>
-                </OrbHolder>
+                <CopilotOrb state={state} colors={colors} size={HERO_ORB_SIZE} iconSize={20} />
                 {active ? (
                     <>
                         <StatusText>{label}</StatusText>

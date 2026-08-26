@@ -449,3 +449,59 @@ export function subscribeOrbSuppressed(listener: (suppressed: boolean) => void):
         orbSuppressListeners.delete(listener);
     };
 }
+
+// theme1: WebGL core + brand ring (default). theme2: CSS sphere, no ring — also
+// the fallback when theme1 can't render. Add a theme by appending it here.
+export const ORB_THEMES = ["theme1", "theme2"] as const;
+export type OrbTheme = typeof ORB_THEMES[number];
+
+export const DEFAULT_ORB_THEME: OrbTheme = "theme1";
+export const FALLBACK_ORB_THEME: OrbTheme = "theme2";
+
+// The `ballerina.copilot.orbTheme` number N maps to theme<N>, or the fallback if it doesn't exist.
+export function orbThemeFromSetting(value: number): OrbTheme {
+    const candidate = `theme${value}` as OrbTheme;
+    return ORB_THEMES.includes(candidate) ? candidate : FALLBACK_ORB_THEME;
+}
+
+let currentOrbTheme: OrbTheme = DEFAULT_ORB_THEME;
+const orbThemeListeners = new Set<(theme: OrbTheme) => void>();
+
+export function getOrbTheme(): OrbTheme {
+    return currentOrbTheme;
+}
+
+export function setOrbTheme(theme: OrbTheme): void {
+    if (theme === currentOrbTheme) {
+        return;
+    }
+    currentOrbTheme = theme;
+    orbThemeListeners.forEach((listener) => listener(theme));
+}
+
+export function subscribeOrbTheme(listener: (theme: OrbTheme) => void): () => void {
+    orbThemeListeners.add(listener);
+    return () => {
+        orbThemeListeners.delete(listener);
+    };
+}
+
+export function useOrbTheme(): OrbTheme {
+    const [theme, setTheme] = useState<OrbTheme>(currentOrbTheme);
+    useEffect(() => subscribeOrbTheme(setTheme), []);
+    return theme;
+}
+
+let orbThemeSynced = false;
+
+export function syncOrbThemeFromSetting(rpcClient: BallerinaRpcClient): void {
+    if (orbThemeSynced) {
+        return;
+    }
+    orbThemeSynced = true;
+    rpcClient
+        .getCommonRpcClient()
+        .getCopilotOrbTheme()
+        .then((value: number) => setOrbTheme(orbThemeFromSetting(value)))
+        .catch((): void => { /* older host without the RPC — keep the default */ });
+}

@@ -312,6 +312,10 @@ export class CommonRpcManager implements CommonRPCAPI {
         return extension.ballerinaExtInstance.enabledExperimentalFeatures();
     }
 
+    async getCopilotOrbTheme(): Promise<number> {
+        return workspace.getConfiguration("ballerina").get<number>("copilot.orbTheme", 1);
+    }
+
     async additionalTriggerSearchEnabled(): Promise<boolean> {
         return extension.ballerinaExtInstance.enabledAdditionalTriggerSearch();
     }

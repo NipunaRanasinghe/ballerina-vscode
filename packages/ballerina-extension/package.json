@@ -208,6 +208,15 @@
                     "default": false,
                     "description": "Enable experimental features."
                 },
+                "ballerina.copilot.orbTheme": {
+                    "type": "number",
+                    "enum": [
+                        1,
+                        2
+                    ],
+                    "default": 1,
+                    "description": "WSO2 Integration Intelligence orb style."
+                },
                 "ballerina.enableNotebookDebug": {
                     "type": "boolean",
                     "default": false,
