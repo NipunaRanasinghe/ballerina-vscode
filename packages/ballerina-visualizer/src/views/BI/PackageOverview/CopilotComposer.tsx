@@ -117,12 +117,19 @@ const AssistantName = styled.div`
     animation: ${riseIn} 400ms ease both;
 `;
 
-const Subtitle = styled.p`
-    margin: 8px 0 0;
+const Subtitle = styled.p<{ $visible?: boolean }>`
+    margin: 0;
     max-width: 440px;
     text-align: center;
     font-size: 14px;
     color: var(--vscode-foreground);
+    overflow: hidden;
+    // Detailed step text is redundant while the panel is open (it shows it there);
+    // collapse it away smoothly, and bring it back when the panel is hidden.
+    opacity: ${(props: { $visible?: boolean }) => (props.$visible ? 1 : 0)};
+    max-height: ${(props: { $visible?: boolean }) => (props.$visible ? "48px" : "0")};
+    margin-top: ${(props: { $visible?: boolean }) => (props.$visible ? "8px" : "0")};
+    transition: opacity 220ms ease, max-height 220ms ease, margin-top 220ms ease;
 `;
 
 const PromptEcho = styled.p`
@@ -483,7 +490,7 @@ export function CopilotComposer({ onAddArtifactManually }: CopilotComposerProps)
             {showRun ? (
                 <RunBlock>
                     <Heading>{runHeading}</Heading>
-                    {runDetail && <Subtitle>{runDetail}</Subtitle>}
+                    {runDetail && <Subtitle $visible={!aiPanelOpen}>{runDetail}</Subtitle>}
                     {submittedPrompt && <PromptEcho>{submittedPrompt}</PromptEcho>}
                     {showOpenCopilot && (
                         <ScratchLine>

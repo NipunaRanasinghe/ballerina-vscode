@@ -869,7 +869,9 @@ export function PackageOverview(props: PackageOverviewProps) {
     const agentState = useAgentRunState();
     const awaitingInput = agentState === "awaiting-input";
     const agentWorking = agentState === "running" || awaitingInput;
-    const showHero = !isLibrary && !aiPanelOpen;
+    // Show the composer when the panel is closed, and also while a run is active even with the
+    // panel open — so the run status looks the same either way (it renders only its run-state then).
+    const showHero = !isLibrary && (!aiPanelOpen || agentWorking);
 
     const fetchContext = useCallback(() => {
         rpcClient
