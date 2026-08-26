@@ -19,9 +19,13 @@
 import { CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { AgentRunStatus } from "@wso2/ballerina-core";
+import { AgentRunStatus, AttachmentStatus } from "@wso2/ballerina-core";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
-import { Button, Codicon, ThemeColors } from "@wso2/ui-toolkit";
+import { Button, Codicon, Icon, ThemeColors } from "@wso2/ui-toolkit";
+import ModeToggle, { AgentMode } from "../../AIPanel/components/AIChatInput/ModeToggle";
+import { useAttachments } from "../../AIPanel/components/AIChatInput/hooks/useAttachments";
+import { acceptResolver, handleAttachmentSelection } from "../../AIPanel/utils/attachment/attachmentManager";
+import AttachmentBox from "../../AIPanel/components/AttachmentBox";
 import {
     AmbientFrame,
     AWAITING_INPUT_LABEL,
@@ -169,9 +173,11 @@ const Composer = styled.div`
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-width: 0;
     padding: 12px 12px 8px;
     border-radius: 12.5px;
     background: var(--vscode-editorWidget-background);
+    cursor: text;
 `;
 
 const PromptTextArea = styled.textarea`
@@ -197,31 +203,72 @@ const PromptTextArea = styled.textarea`
     }
 `;
 
-const ComposerFooter = styled.div`
+const ActionRow = styled.div`
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
+    width: 100%;
 `;
 
-const SendButton = styled.button`
+const RightControls = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 2px;
+`;
+
+const AttachmentsWrap = styled.div`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 8px 0;
+    min-width: 0;
+    max-width: 100%;
+`;
+
+// Caps each chip and ellipsizes its filename (the shared AttachmentBox has no width limit).
+const AttachmentChip = styled.div`
+    display: inline-flex;
+    min-width: 0;
+    max-width: 240px;
+
+    & > div {
+        max-width: 100%;
+        overflow: hidden;
+    }
+    & > div > span:first-of-type {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+`;
+
+// Matches the AI panel's ActionButton (AIChatInput/index.tsx).
+const ComposerActionButton = styled.button`
+    width: 24px;
+    height: 24px;
+    background-color: transparent;
+    color: var(--vscode-icon-foreground);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: none;
-    border-radius: 50%;
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    cursor: pointer;
+    transition: background-color 0.2s;
+    box-sizing: border-box;
 
     &:hover:not(:disabled) {
-        filter: brightness(1.1);
+        background-color: var(--vscode-toolbar-hoverBackground);
+    }
+
+    &:active:not(:disabled) {
+        background-color: var(--vscode-toolbar-activeBackground);
     }
 
     &:disabled {
-        opacity: 0.4;
+        color: var(--vscode-disabledForeground);
         cursor: default;
     }
 `;
@@ -315,7 +362,13 @@ export function CopilotEmptyState({ onAddArtifactManually }: CopilotEmptyStatePr
     const { rpcClient } = useRpcContext();
     const [status, setStatus] = useState<AgentRunStatus | null>(null);
     const [text, setText] = useState("");
+    const [agentMode, setAgentMode] = useState<AgentMode>(AgentMode.Edit);
     const [submittedPrompt, setSubmittedPrompt] = useState<string>();
+    const { attachments, fileInputRef, handleAttachClick, onAttachmentSelection, removeAttachment, removeAllAttachments } =
+        useAttachments({
+            attachmentOptions: { multiple: true, acceptResolver, handleAttachmentSelection },
+            activeCommand: null,
+        });
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const focusOnTextRef = useRef(false);
     const runStartedRef = useRef(false);
@@ -385,9 +438,16 @@ export function CopilotEmptyState({ onAddArtifactManually }: CopilotEmptyStatePr
 
     const send = (prompt: string) => {
         const trimmed = prompt.trim();
-        if (submitPromptToCopilot(rpcClient, trimmed)) {
+        const ready = attachments.filter((a) => a.status === AttachmentStatus.Success);
+        // Entering from this page always starts a fresh chat, not the current thread.
+        if (submitPromptToCopilot(rpcClient, trimmed, {
+            planMode: agentMode === AgentMode.Plan,
+            attachments: ready,
+            newThread: true,
+        })) {
             setSubmittedPrompt(trimmed);
             setText("");
+            removeAllAttachments();
         }
     };
 
@@ -436,17 +496,45 @@ export function CopilotEmptyState({ onAddArtifactManually }: CopilotEmptyStatePr
                                     placeholder="Describe what you want to build…"
                                     aria-label="Describe the integration you want to build"
                                 />
-                                <ComposerFooter>
-                                    <SendButton
-                                        type="button"
-                                        title="Send to WSO2 Integration Intelligence"
-                                        aria-label="Send to WSO2 Integration Intelligence"
-                                        disabled={!text.trim()}
-                                        onClick={() => send(text)}
-                                    >
-                                        <Codicon name="arrow-up" />
-                                    </SendButton>
-                                </ComposerFooter>
+                                {attachments.length > 0 && (
+                                    <AttachmentsWrap>
+                                        {attachments.map((file, index) => (
+                                            <AttachmentChip key={index} title={file.name}>
+                                                <AttachmentBox
+                                                    status={file.status}
+                                                    fileName={file.name}
+                                                    index={index}
+                                                    removeAttachment={removeAttachment}
+                                                />
+                                            </AttachmentChip>
+                                        ))}
+                                    </AttachmentsWrap>
+                                )}
+                                <ActionRow>
+                                    <ModeToggle mode={agentMode} onChange={setAgentMode} />
+                                    <RightControls>
+                                        <input
+                                            type="file"
+                                            multiple
+                                            accept={acceptResolver(null)}
+                                            style={{ display: "none" }}
+                                            ref={fileInputRef}
+                                            onChange={onAttachmentSelection}
+                                        />
+                                        <ComposerActionButton type="button" title="Attach context" onClick={handleAttachClick}>
+                                            <Icon name="Paperclip" sx={{ fontSize: "16px" }} />
+                                        </ComposerActionButton>
+                                        <ComposerActionButton
+                                            type="button"
+                                            title="Send to WSO2 Integration Intelligence"
+                                            aria-label="Send to WSO2 Integration Intelligence"
+                                            disabled={!text.trim()}
+                                            onClick={() => send(text)}
+                                        >
+                                            <Icon name="Send" sx={{ fontSize: "16px" }} />
+                                        </ComposerActionButton>
+                                    </RightControls>
+                                </ActionRow>
                             </Composer>
                         </AmbientFrame>
                     </ComposerRow>

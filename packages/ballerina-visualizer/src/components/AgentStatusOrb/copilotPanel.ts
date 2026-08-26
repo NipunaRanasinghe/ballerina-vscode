@@ -17,13 +17,16 @@
  */
 
 import { BallerinaRpcClient } from "@wso2/ballerina-rpc-client";
-import { SHARED_COMMANDS } from "@wso2/ballerina-core";
+import { Attachment, SHARED_COMMANDS } from "@wso2/ballerina-core";
 
 export function openCopilotPanel(rpcClient: BallerinaRpcClient | undefined): void {
     rpcClient?.getCommonRpcClient().executeCommand({ commands: [SHARED_COMMANDS.OPEN_AI_PANEL] });
 }
 
 export interface CopilotPromptOptions {
+    planMode?: boolean;
+    attachments?: Attachment[];
+    newThread?: boolean;
     hiddenContext?: string;
 }
 
