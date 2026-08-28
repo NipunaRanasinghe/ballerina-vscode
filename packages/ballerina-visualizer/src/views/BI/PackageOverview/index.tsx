@@ -127,14 +127,16 @@ const HeaderControls = styled.div`
     align-items: center;
 `;
 
-const MainContent = styled.div<{ fullWidth?: boolean }>`
+const MainContent = styled.div<{ fullWidth?: boolean, sideCollapsed?: boolean }>`
     padding: 16px;
     display: grid;
-    grid-template-columns: ${(props: { fullWidth?: boolean }) => props.fullWidth ? '1fr' : '3fr 1fr'};
+    grid-template-columns: ${(props: { fullWidth?: boolean, sideCollapsed?: boolean }) =>
+        props.fullWidth ? '1fr' : props.sideCollapsed ? '1fr 0fr' : '3fr 1fr'};
     grid-template-rows: minmax(0, 1fr);
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    transition: grid-template-columns 220ms ease;
 `;
 
 const DiagramPanel = styled.div<{ noPadding?: boolean, noBorder?: boolean }>`
@@ -156,10 +158,18 @@ const LeftContent = styled.div`
     min-height: 0; // Prevents flex blowout
 `;
 
-const SidePanel = styled.div`
-    margin-left: 16px;
+const SidePanel = styled.div<{ collapsed?: boolean }>`
+    margin-left: ${(props: { collapsed?: boolean }) => (props.collapsed ? "0" : "16px")};
+    // Sits outside the design panel, so its first heading needs the panel's own header inset
+    // to share a baseline with the Design/Readme tabs.
+    padding-top: 20px;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
+    opacity: ${(props: { collapsed?: boolean }) => (props.collapsed ? 0 : 1)};
+    // visibility (not display) keeps the collapsed panel out of the tab order while still animating.
+    visibility: ${(props: { collapsed?: boolean }) => (props.collapsed ? "hidden" : "visible")};
+    transition: opacity 180ms ease, margin-left 220ms ease, visibility 220ms;
 `;
 
 // Full-height README view that replaces the design panel.
@@ -177,8 +187,43 @@ const ReadmePanel = styled.div`
 const ActionContainer = styled.div`
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     gap: 8px;
 `;
+
+// Only labelled while the panel is hidden, so the label has to grow/shrink rather than pop.
+// Width has to be an explicit px value, not max-width: `overflow: hidden` zeroes the span's
+// min-content contribution, so the button would reserve no room for the label and clip it.
+const DeployToggleLabel = styled.span<{ shown?: boolean, textWidth?: number }>`
+    display: inline-block;
+    flex: 0 0 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    width: ${(props: { shown?: boolean, textWidth?: number }) => (props.shown ? `${props.textWidth ?? 0}px` : "0")};
+    opacity: ${(props: { shown?: boolean }) => (props.shown ? 1 : 0)};
+    margin-left: ${(props: { shown?: boolean }) => (props.shown ? "5px" : "0")};
+    transition: width 220ms ease, opacity 180ms ease, margin-left 220ms ease;
+`;
+
+const DEPLOY_PANEL_COLLAPSED_KEY = "ballerina.overview.deployPanelCollapsed";
+
+// Storage may be unavailable/quota-restricted in the webview — default to expanded rather
+// than throwing during render.
+function loadDeployCollapsed(): boolean {
+    try {
+        return localStorage.getItem(DEPLOY_PANEL_COLLAPSED_KEY) === "true";
+    } catch {
+        return false;
+    }
+}
+
+function storeDeployCollapsed(collapsed: boolean): void {
+    try {
+        localStorage.setItem(DEPLOY_PANEL_COLLAPSED_KEY, String(collapsed));
+    } catch {
+        return;
+    }
+}
 
 const EmptyReadmeContainer = styled.div`
     display: flex;
@@ -884,6 +929,15 @@ export function PackageOverview(props: PackageOverviewProps) {
     const [isLibrary, setIsLibrary] = useState<boolean>(false);
     const [isNPSupported, setIsNPSupported] = useState<boolean>(false);
     const [overviewView, setOverviewView] = useState<"design" | "readme">("design");
+    const [deployCollapsed, setDeployCollapsed] = useState<boolean>(loadDeployCollapsed);
+    const [deployLabelWidth, setDeployLabelWidth] = useState(0);
+    // Measured on attach rather than in an effect: the label mounts below an early return,
+    // so a mount effect would only ever see a null ref.
+    const deployLabelRef = useCallback((node: HTMLSpanElement | null) => {
+        if (node) {
+            setDeployLabelWidth((width) => (width === 0 ? node.scrollWidth : width));
+        }
+    }, []);
     const aiPanelOpen = useAiPanelOpen();
     const agentState = useAgentRunState();
     const awaitingInput = agentState === "awaiting-input";
@@ -1132,6 +1186,30 @@ export function PackageOverview(props: PackageOverviewProps) {
         rpcClient.getVisualizerRpcClient().goBack();
     };
 
+    const handleToggleDeployPanel = () => {
+        setDeployCollapsed((collapsed) => {
+            storeDeployCollapsed(!collapsed);
+            return !collapsed;
+        });
+    };
+
+    // Labelled only while the panel is hidden; expanded, its own "Deployment Options" heading names it.
+    const deployPanelToggle = (
+        <Button
+            appearance="icon"
+            onClick={handleToggleDeployPanel}
+            tooltip={deployCollapsed ? "Show deployment panel" : "Hide deployment panel"}
+            aria-label={deployCollapsed ? "Show deployment panel" : "Hide deployment panel"}
+            aria-expanded={!deployCollapsed}
+            buttonSx={{ padding: "4px 8px" }}
+        >
+            <Codicon name={deployCollapsed ? "layout-sidebar-right-off" : "layout-sidebar-right"} />
+            <DeployToggleLabel ref={deployLabelRef} shown={deployCollapsed} textWidth={deployLabelWidth}>
+                Deployment
+            </DeployToggleLabel>
+        </Button>
+    );
+
     const headerActions = (
         <>
             <Button appearance="icon" onClick={handleLocalConfigure} buttonSx={{ padding: "4px 8px" }}>
@@ -1153,6 +1231,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                     <Button appearance="icon" onClick={handleLocalDebug} buttonSx={{ padding: "4px 8px" }}>
                         <Codicon name="debug" sx={{ marginRight: 5 }} /> Debug
                     </Button>
+                    {deployPanelToggle}
                 </>
             )}
             {isLibrary && (
@@ -1181,6 +1260,7 @@ export function PackageOverview(props: PackageOverviewProps) {
             </ViewTab>
         </ViewTabs>
     ) : undefined;
+
 
     return (
         <PageLayout>
@@ -1212,7 +1292,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                         </HeaderControls>
                     </HeaderRow>
                 )}
-                <MainContent fullWidth={isLibrary}>
+                <MainContent fullWidth={isLibrary} sideCollapsed={deployCollapsed}>
                     <LeftContent>
                         {overviewView === "readme" && !isLibrary ? (
                             <ReadmePanel>
@@ -1324,7 +1404,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                         )}
                     </LeftContent>
                     {!isLibrary && (
-                        <SidePanel>
+                        <SidePanel collapsed={deployCollapsed} aria-hidden={deployCollapsed}>
                             {!isInDevant &&
                                 <>
                                     <DeploymentOptions
