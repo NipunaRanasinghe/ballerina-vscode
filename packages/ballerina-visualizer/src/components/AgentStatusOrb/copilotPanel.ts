@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com) All Rights Reserved.
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com) All Rights Reserved.
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -31,21 +31,30 @@ export interface CopilotPromptOptions {
 }
 
 /** Shared by every inline "ask Copilot" surface so they open the panel identically. */
-export function submitPromptToCopilot(
+// Resolves true only once the panel has actually taken the prompt, so a caller can keep the
+// typed text and attachments on screen instead of clearing input that never got handed off.
+export async function submitPromptToCopilot(
     rpcClient: BallerinaRpcClient | undefined,
     prompt: string,
     options?: CopilotPromptOptions
-): boolean {
+): Promise<boolean> {
     const trimmed = prompt.trim();
     if (!trimmed) {
         openCopilotPanel(rpcClient);
         return false;
     }
-    rpcClient?.getCommonRpcClient().executeCommand({
-        commands: [
-            SHARED_COMMANDS.OPEN_AI_PANEL,
-            { type: "text", text: trimmed, planMode: false, autoSubmit: true, ...options },
-        ],
-    });
-    return true;
+    if (!rpcClient) {
+        return false;
+    }
+    try {
+        await rpcClient.getCommonRpcClient().executeCommand({
+            commands: [
+                SHARED_COMMANDS.OPEN_AI_PANEL,
+                { type: "text", text: trimmed, planMode: false, autoSubmit: true, ...options },
+            ],
+        });
+        return true;
+    } catch {
+        return false;
+    }
 }

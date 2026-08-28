@@ -475,15 +475,16 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
     const runDetail = state === "completed" ? undefined : status?.label;
     const showOpenCopilot = !aiPanelOpen;
 
-    const send = (prompt: string) => {
+    const send = async (prompt: string) => {
         const trimmed = prompt.trim();
         const ready = attachments.filter((a) => a.status === AttachmentStatus.Success);
         // Entering from this page always starts a fresh chat, not the current thread.
-        if (submitPromptToCopilot(rpcClient, trimmed, {
+        const handedOff = await submitPromptToCopilot(rpcClient, trimmed, {
             planMode: agentMode === AgentMode.Plan,
             attachments: ready,
             newThread: true,
-        })) {
+        });
+        if (handedOff) {
             setSubmittedPrompt(trimmed);
             setText("");
             removeAllAttachments();
@@ -531,7 +532,7 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
                                         if (event.key === "Enter" && !event.shiftKey) {
                                             event.preventDefault();
                                             if (text.trim()) {
-                                                send(text);
+                                                void send(text);
                                             }
                                         }
                                     }}
@@ -571,7 +572,7 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
                                             title="Send to WSO2 Integration Intelligence"
                                             aria-label="Send to WSO2 Integration Intelligence"
                                             disabled={!text.trim()}
-                                            onClick={() => send(text)}
+                                            onClick={() => void send(text)}
                                         >
                                             <Icon name="Send" sx={{ fontSize: "16px" }} />
                                         </ComposerActionButton>
