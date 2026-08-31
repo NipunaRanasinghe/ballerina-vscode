@@ -457,7 +457,7 @@ export function AgentStatusOrb() {
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 title={label ? `WSO2 Integration Intelligence — ${label}` : "WSO2 Integration Intelligence"}
-                aria-label={label ? `WSO2 Integration Intelligence: ${label}. Click to open the mini chat, double-click for the full panel.` : "Click to open the WSO2 Integration Intelligence mini chat, double-click for the full panel"}
+                aria-label={label ? `WSO2 Integration Intelligence: ${label}. Click to open the mini chat, double-click for the chat panel.` : "Click to open the WSO2 Integration Intelligence mini chat, double-click for the chat panel"}
             >
                 <CopilotOrb state={state} colors={colors} size={ORB_SIZE} />
             </OrbButton>
