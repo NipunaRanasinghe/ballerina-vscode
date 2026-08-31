@@ -162,6 +162,10 @@ const sphereDrift = keyframes`
     50% { background-position: 70% 62%; }
     100% { background-position: 30% 30%; }
 `;
+const sphereSheen = keyframes`
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+`;
 
 interface SphereProps {
     colors: [string, string, string];
@@ -193,18 +197,65 @@ export const Sphere = styled.div<SphereProps>`
     display: flex;
     align-items: center;
     justify-content: center;
-    // Base has to dominate or this reads near-black on a light theme; Gloss adds the specular above.
-    background: radial-gradient(
-        circle at 32% 28%,
-        ${(props: SphereProps) => props.colors[2]},
-        ${(props: SphereProps) => props.colors[1]} 52%,
-        ${(props: SphereProps) => props.colors[0]} 100%
-    );
-    background-size: 180% 180%;
-    box-shadow: inset 0 -5px 10px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    // Base has to dominate the body or this reads near-black on a light theme.
+    background:
+        radial-gradient(
+            circle at 30% 24%,
+            rgba(255, 255, 255, 0.55),
+            rgba(255, 255, 255, 0.1) 24%,
+            transparent 44%
+        ),
+        radial-gradient(
+            circle at 74% 80%,
+            color-mix(in srgb, ${(props: SphereProps) => props.colors[2]} 65%, transparent),
+            transparent 50%
+        ),
+        radial-gradient(
+            circle at 62% 34%,
+            color-mix(in srgb, ${(props: SphereProps) => props.colors[2]} 55%, transparent),
+            transparent 46%
+        ),
+        radial-gradient(
+            circle at 26% 70%,
+            color-mix(in srgb, ${(props: SphereProps) => props.colors[0]} 65%, transparent),
+            transparent 48%
+        ),
+        radial-gradient(
+            circle at 32% 28%,
+            ${(props: SphereProps) => props.colors[2]},
+            ${(props: SphereProps) => props.colors[1]} 52%,
+            ${(props: SphereProps) => props.colors[0]} 100%
+        );
+    /*
+     * Highlights stay at 100% so they never slide; the three tinted layers are
+     * oversized by different amounts so one shared drift moves them at different
+     * apparent speeds, which is what fakes the shader's liquid depth.
+     */
+    background-size: 100% 100%, 100% 100%, 220% 220%, 170% 170%, 180% 180%;
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+        inset 0 9px 16px rgba(255, 255, 255, 0.1),
+        inset 0 -8px 14px rgba(0, 0, 0, 0.16),
+        0 0 14px color-mix(in srgb, ${(props: SphereProps) => props.colors[1]} 45%, transparent);
     animation:
         ${spherePulse} ${(props: SphereProps) => (4.2 - props.energy * 2.4).toFixed(2)}s ease-in-out infinite,
         ${sphereDrift} ${(props: SphereProps) => (7.5 - props.energy * 3.5).toFixed(2)}s ease-in-out infinite;
+
+    // Slow sheen sweep — the CSS stand-in for the shader's motion.
+    &::before {
+        content: "";
+        position: absolute;
+        inset: -28%;
+        background: conic-gradient(
+            from 0deg,
+            transparent 0 54%,
+            rgba(255, 255, 255, 0.26) 72%,
+            transparent 86%
+        );
+        animation: ${sphereSheen} ${(props: SphereProps) => (9 - props.energy * 4).toFixed(2)}s linear infinite;
+        pointer-events: none;
+    }
 
     /*
      * Both fallbacks also undo background-size: the enlarged box only exists so
@@ -213,7 +264,11 @@ export const Sphere = styled.div<SphereProps>`
      */
     @media (prefers-reduced-motion: reduce), (forced-colors: active) {
         animation: none;
-        background-size: 100% 100%;
+        background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+
+        &::before {
+            display: none;
+        }
     }
 `;
 
