@@ -249,11 +249,24 @@ as an output so the matrix and `Report`'s download/aggregation loops read the sa
 Windows-only aggregation failure into a warning, so `needs.E2E.result` stays `success` and the chat
 notification does not fire on a Windows failure. Windows results still reach the step summary and the
 `e2e-metrics` history — `aggregate-e2e-results.js` runs once per platform, and every history row now
-carries an `os` field (absent on rows written before this). To make Windows a gate, drop the
-`continue-on-error` expression on the `E2E` job and the `windows` branch in `Report`'s aggregation
-loop. It is not a gate yet because parts of the suite are still Linux-only — a `zip` shell-out for
-failure snapshots, a `bal` invocation that does not resolve `bal.bat`, a hard-coded `/tmp` path in
-one spec, and `SIGKILL` teardown that leaves Windows file locks behind. Those are tracked separately.
+carries an `os` field (absent on rows written before this). It is not a gate yet because parts of
+the suite are still Linux-only — a `zip` shell-out for failure snapshots, a `bal` invocation that
+does not resolve `bal.bat`, a hard-coded `/tmp` path in one spec, and `SIGKILL` teardown that leaves
+Windows file locks behind. Those are tracked separately.
+
+There are three places that let Windows through, and making it a gate means reverting all three: the
+`continue-on-error` expression on the `E2E` job, the `windows` branch in `Report`'s download loop,
+and the `windows` branch in `Report`'s aggregation loop.
+
+**The Windows legs run with `BI_E2E_RETRIES: 0`.** `playwright.config.js` otherwise retries a failed
+test twice, and the suite is serial (`workers: 1`) with a 20-minute per-test timeout — so while the
+blockers above are still open, retries burn the 60-minute job budget re-running tests that fail for a
+platform reason rather than a flaky one. A leg killed by that timeout uploads no artifact, and the
+run records nothing. Zero retries reaches more distinct tests per run, which is the pass rate this
+phase exists to measure; the cost is that Windows flakiness is not distinguishable from Windows
+failure until retries are turned back on. `maxFailures: 10` is deliberately left alone: it truncates
+a badly-failing group early, which is what keeps a leg inside the job timeout and producing an
+artifact at all.
 
 **Handles GitHub's "Re-run failed jobs" across the whole pipeline.** A matrix group can be
 re-run independently, advancing only its own `github.run_attempt`; `run-e2e-group` restores the

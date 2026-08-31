@@ -77,8 +77,18 @@ jobs:
     # whose Windows pass rate is still unknown cannot redden every scheduled run. Flip this
     # to a plain `false` (or delete it) once that pass rate justifies gating on it.
     continue-on-error: ${{ matrix.os == 'windows' }}
+    env:
+      # Windows only: playwright.config.js retries a failed test twice by default, and the
+      # suite is serial (workers: 1) with a 20-minute per-test timeout. Until the known
+      # Windows blockers are fixed, those retries spend the 60-minute job budget re-running
+      # tests that are failing for a platform reason rather than a flaky one, and a leg
+      # killed by the timeout uploads no artifact at all — so the rollout collects nothing.
+      # Zero retries covers more distinct tests per run, which is the pass rate this phase
+      # is here to measure. Empty on Linux, which leaves the config default of 2 in place.
+      BI_E2E_RETRIES: ${{ matrix.os == 'windows' && '0' || '' }}
     steps:
-      # pnpm/rush nest node_modules well past the 260-character legacy limit.
+      # Only affects git's own file operations — here, the recursive submodule checkout,
+      # whose nested paths run past the 260-character legacy limit.
       - name: Enable long paths for Git
         if: runner.os == 'Windows'
         shell: bash
@@ -180,6 +190,13 @@ jobs:
               mkdir -p "e2e-results/${platform}/${group}"
               if ! retry 3 5 gh run download "${{ github.run_id }}" --repo "${{ github.repository }}" \
                 -n "${name}" -D "e2e-results/${platform}/${group}"; then
+                # Same reason the E2E job and the aggregation below let Windows through: a
+                # failure on a non-gating platform must not fail this job, or the
+                # notification would fire on a leg that is not a gate yet.
+                if [ "$platform" = "windows" ]; then
+                  echo "::warning::Failed to download artifact ${name} for ${platform} ${group} after 3 attempts; skipping."
+                  continue
+                fi
                 echo "::error::Failed to download artifact ${name} for ${platform} ${group} after 3 attempts."
                 exit 1
               fi
@@ -205,7 +222,14 @@ jobs:
               # persisted, but a Windows-only failure must not fail this job either, or the
               # notification below would fire on a leg that is not a gate yet.
               if [ "$platform" = "windows" ]; then
-                echo "::warning::Windows e2e results contain failures; recorded but not gating."
+                # The script writes the stats file only when it read at least one test, so
+                # its absence separates "the suite ran and failed" from "the legs produced
+                # nothing" — the latter being the expected shape while Windows is new.
+                if [ -s "e2e-run-stats-${platform}.jsonl" ]; then
+                  echo "::warning::Windows e2e results contain failures; recorded but not gating."
+                else
+                  echo "::warning::No Windows e2e results were produced (legs killed before uploading, or no artifacts); nothing recorded."
+                fi
               else
                 gate_status=1
               fi
