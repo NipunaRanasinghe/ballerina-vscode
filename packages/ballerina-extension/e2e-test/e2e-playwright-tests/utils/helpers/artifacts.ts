@@ -38,12 +38,15 @@ export async function domClick(locator: Locator): Promise<void> {
     await locator.evaluate((el: HTMLElement) => el.click());
 }
 
+// Tail-anchored: a codicon glyph prefixes the header button's name, and stopping at "Artifact"
+// keeps that pattern from also matching "…Artifact manually".
+const ADD_ARTIFACT_ROUTES = [
+    { label: 'Add Artifact manually', name: /Add Artifact manually$/i },
+    { label: 'Add Artifact', name: /Add Artifact$/i },
+] as const;
+
 /**
- * Add an artifact to the project.
- *
- * "Add Artifact" is the overview's only route to the flat artifact-list picker, offered
- * whether the integration is empty or already holds artifacts, and a card click there goes
- * straight to the artifact's form.
+ * Add an artifact to the project. A card click in the picker goes straight to the form.
  *
  * An "Add Integration" button is a failure, not an alternative. It opens the creation
  * wizard's Type step — a card picker restricted to the kinds the wizard supports, sharing the
@@ -56,8 +59,24 @@ export async function addArtifact(artifactName: string, testId: string) {
     if (!artifactWebView) {
         throw new Error(BI_WEBVIEW_NOT_FOUND_ERROR);
     }
-    const addArtifactBtn = artifactWebView.getByRole('button', { name: /Add Artifact/i });
-    await addArtifactBtn.waitFor({ timeout: 30000 });
+    // Wait on either route before counting, or the assertion below races the render.
+    await artifactWebView.getByRole('button', { name: /Add Artifact/i }).first()
+        .waitFor({ timeout: 30000 });
+    const present = [];
+    for (const route of ADD_ARTIFACT_ROUTES) {
+        if (await artifactWebView.getByRole('button', { name: route.name }).count() > 0) {
+            present.push(route);
+        }
+    }
+    if (present.length !== 1) {
+        throw new Error(
+            `Expected exactly one Add Artifact route on the overview, found ${present.length}`
+            + ` (${present.map((r) => `"${r.label}"`).join(', ') || 'none'}).`
+        );
+    }
+    const [route] = present;
+    console.log(`  via "${route.label}"`);
+    const addArtifactBtn = artifactWebView.getByRole('button', { name: route.name });
 
     // `force` throughout — the floating Copilot orb/invite box intermittently overlaps
     // and intercepts pointer events on cards and buttons across these views.
