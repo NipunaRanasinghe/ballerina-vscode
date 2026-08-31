@@ -193,14 +193,15 @@ export const Sphere = styled.div<SphereProps>`
     display: flex;
     align-items: center;
     justify-content: center;
+    // Base has to dominate or this reads near-black on a light theme; Gloss adds the specular above.
     background: radial-gradient(
         circle at 32% 28%,
-        rgba(255, 255, 255, 0.55),
-        ${(props: SphereProps) => props.colors[0]} 45%,
-        ${(props: SphereProps) => props.colors[1]} 100%
+        ${(props: SphereProps) => props.colors[2]},
+        ${(props: SphereProps) => props.colors[1]} 52%,
+        ${(props: SphereProps) => props.colors[0]} 100%
     );
     background-size: 180% 180%;
-    box-shadow: inset 0 -5px 10px rgba(0, 0, 0, 0.18);
+    box-shadow: inset 0 -5px 10px rgba(0, 0, 0, 0.12);
     animation:
         ${spherePulse} ${(props: SphereProps) => (4.2 - props.energy * 2.4).toFixed(2)}s ease-in-out infinite,
         ${sphereDrift} ${(props: SphereProps) => (7.5 - props.energy * 3.5).toFixed(2)}s ease-in-out infinite;
