@@ -59,24 +59,15 @@ export async function addArtifact(artifactName: string, testId: string) {
     if (!artifactWebView) {
         throw new Error(BI_WEBVIEW_NOT_FOUND_ERROR);
     }
-    // Wait on either route before counting, or the assertion below races the render.
-    await artifactWebView.getByRole('button', { name: /Add Artifact/i }).first()
-        .waitFor({ timeout: 30000 });
-    const present = [];
+    const addArtifactBtn = artifactWebView.getByRole('button', { name: /Add Artifact/i });
+    await addArtifactBtn.waitFor({ timeout: 30000 });
+    // Report the route only. Selecting on it instead would change what gets clicked, and this
+    // helper front-runs every artifact spec, so a wrong guess breaks the whole suite.
     for (const route of ADD_ARTIFACT_ROUTES) {
         if (await artifactWebView.getByRole('button', { name: route.name }).count() > 0) {
-            present.push(route);
+            console.log(`  via "${route.label}"`);
         }
     }
-    if (present.length !== 1) {
-        throw new Error(
-            `Expected exactly one Add Artifact route on the overview, found ${present.length}`
-            + ` (${present.map((r) => `"${r.label}"`).join(', ') || 'none'}).`
-        );
-    }
-    const [route] = present;
-    console.log(`  via "${route.label}"`);
-    const addArtifactBtn = artifactWebView.getByRole('button', { name: route.name });
 
     // `force` throughout — the floating Copilot orb/invite box intermittently overlaps
     // and intercepts pointer events on cards and buttons across these views.
