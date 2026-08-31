@@ -143,10 +143,6 @@ class AgentStatusManager {
     }
 
     setAiPanelVisible(visible: boolean): void {
-        if (visible) {
-            // Panel on screen means the composer isn't; drop a stale inline flag.
-            this.inlineStatusVisible = false;
-        }
         if (this.aiPanelVisible === visible) {
             return;
         }
