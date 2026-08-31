@@ -135,7 +135,7 @@ export class CommonRpcClient implements CommonRPCAPI {
         return this._messenger.sendRequest(experimentalEnabled, HOST_EXTENSION);
     }
 
-    getCopilotOrbTheme(): Promise<number> {
+    getCopilotOrbTheme(): Promise<string> {
         return this._messenger.sendRequest(getCopilotOrbTheme, HOST_EXTENSION);
     }
 

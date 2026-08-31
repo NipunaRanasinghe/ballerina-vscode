@@ -58,7 +58,7 @@ export interface CommonRPCAPI {
     selectProjectRelativeFile: (params: ProjectFileRequest) => Promise<ProjectFileResponse>;
     selectFileOrFolderPath: () => Promise<FileOrDirResponse>;
     experimentalEnabled: () => Promise<boolean>;
-    getCopilotOrbTheme: () => Promise<number>;
+    getCopilotOrbTheme: () => Promise<string>;
     additionalTriggerSearchEnabled: () => Promise<boolean>;
     isNPSupported: () => Promise<boolean>;
     getWorkspaceRoot: () => Promise<WorkspaceRootResponse>;

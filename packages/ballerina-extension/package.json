@@ -209,12 +209,20 @@
                     "description": "Enable experimental features."
                 },
                 "ballerina.copilot.orbTheme": {
-                    "type": "number",
+                    "type": "string",
                     "enum": [
-                        1,
-                        2
+                        "animated",
+                        "simple"
                     ],
-                    "default": 1,
+                    "enumItemLabels": [
+                        "Animated",
+                        "Simple"
+                    ],
+                    "enumDescriptions": [
+                        "Animated orb with a glowing ring. Uses the simple orb when it cannot render.",
+                        "Simple gradient orb without a ring."
+                    ],
+                    "default": "animated",
                     "description": "WSO2 Integration Intelligence orb style."
                 },
                 "ballerina.enableNotebookDebug": {

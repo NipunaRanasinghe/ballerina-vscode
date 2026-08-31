@@ -120,21 +120,21 @@ export function CopilotOrb({ state, colors, size, iconSize = 26, theme }: Copilo
     const handleWebglFailed = useCallback(() => setWebglFailed(true), []);
 
     const requested = theme ?? preferred;
-    // theme1 needs WebGL; fall back to theme2 when it can't render.
-    const resolved: OrbTheme = requested === "theme1" && webglFailed ? FALLBACK_ORB_THEME : requested;
+    // The animated orb needs WebGL; fall back to the simple one when it can't render.
+    const resolved: OrbTheme = requested === "animated" && webglFailed ? FALLBACK_ORB_THEME : requested;
     const energy = ORB_ENERGY[state];
 
     return (
         <Holder $size={size}>
             {(state === "running" || state === "awaiting-input") && <Halo colors={colors} />}
             <Aura colors={colors} state={state} />
-            {resolved === "theme1" ? (
+            {resolved === "animated" ? (
                 <ShaderOrb colors={colors} energy={energy} size={size} onContextFailed={handleWebglFailed} />
             ) : (
                 <Sphere colors={colors} energy={energy} />
             )}
             <Gloss />
-            {resolved === "theme1" && <BrandRing />}
+            {resolved === "animated" && <BrandRing />}
             {state === "running" && <SpinArc />}
             <IconOverlay>
                 <Icon
