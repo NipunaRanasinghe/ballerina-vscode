@@ -15,7 +15,7 @@ workflow because the extension manifest owns the shared extension/LS version.
 | `reusable-build.yml` | `workflow_call` only | Reusable build pipeline (ballerina-only) |
 | `devBuild.yml` | manual + `workflow_call` | Builds a custom branch as a timestamped pre-release VSIX. It creates workflow artifacts only: no GitHub release and no marketplace publication. `schedule.yml` reuses this workflow after stamping the nightly branch. |
 | `schedule.yml` | nightly cron + manual | Syncs the `builds/nightly` branch, runs the LS multi-branch pack/test/Windows-build matrix, calls `devBuild.yml`, and moves the `nightly` tag after every job passes. Manual runs can select a source branch and otherwise behave exactly like scheduled nightlies, including notifications. The VSIX remains a workflow artifact; no GitHub Release is created. See [Versioning](#versioning) and [The nightly branch](#the-nightly-branch). |
-| `e2e-scheduled.yml` | every 6h cron + manual | Runs the Playwright E2E suite against the nightly VSIX without rebuilding, and tracks flakiness over time. See [Scheduled E2E testing](#scheduled-e2e-testing). |
+| `e2e-scheduled.yml` | every 6h cron + manual | Runs the Playwright E2E suite on Linux and Windows against the nightly VSIX without rebuilding, and tracks flakiness over time. See [Scheduled E2E testing](#scheduled-e2e-testing). |
 | `pull-request.yml` | PRs + manual | Detects changes with `dorny/paths-filter`; if anything build-relevant changed, runs `reusable-build.yml` which builds the entire chain (LS via Gradle, then all TS packages and the extension VSIX via rush) in a single job. Windows LS coverage runs in `schedule.yml` only. |
 | `release-pre-release.yml` | manual dispatch | Builds either a timestamped pre-release or the release version authored in the extension manifest. Its `githubRelease` input creates a GitHub Release with the VSIX and LS jar and publishes the matching `io.ballerina:ballerina-language-server` package. Real releases also perform the release branch/PR handling. |
 | `publish-vsix.yml` | manual dispatch | Publishes a built VSIX (passed by `workflowRunId`) to VSCode Marketplace + OpenVSX |
@@ -237,6 +237,24 @@ Ballerina distribution version to what the nightly LS actually shipped with, not
 `gradle.properties` on the current checkout — otherwise a version bump on the default branch
 between nightly builds would fail the whole suite in a way indistinguishable from flakiness.
 
+**Runs on Linux and Windows.** The `E2E` matrix is platform × group, so a run executes 8 legs.
+`run-e2e-group` lowercases `runner.os` into a platform label and puts it in every artifact name
+(`Ballerina-e2e-test-results-windows-group1-1`), and skips the Linux-only setup on Windows: no
+`apt-get`, no `xvfb`, no `dbus`, and no `ffmpeg` X11 screen grab, because the Windows runner already
+has a desktop session. Playwright's own per-test videos, screenshots and traces are recorded on both
+platforms; only the whole-session `record.mp4` is Linux-only. `Prepare` publishes the platform list
+as an output so the matrix and `Report`'s download/aggregation loops read the same list.
+
+**Windows runs but does not gate.** The Windows legs set `continue-on-error`, and `Report` turns a
+Windows-only aggregation failure into a warning, so `needs.E2E.result` stays `success` and the chat
+notification does not fire on a Windows failure. Windows results still reach the step summary and the
+`e2e-metrics` history — `aggregate-e2e-results.js` runs once per platform, and every history row now
+carries an `os` field (absent on rows written before this). To make Windows a gate, drop the
+`continue-on-error` expression on the `E2E` job and the `windows` branch in `Report`'s aggregation
+loop. It is not a gate yet because parts of the suite are still Linux-only — a `zip` shell-out for
+failure snapshots, a `bal` invocation that does not resolve `bal.bat`, a hard-coded `/tmp` path in
+one spec, and `SIGKILL` teardown that leaves Windows file locks behind. Those are tracked separately.
+
 **Handles GitHub's "Re-run failed jobs" across the whole pipeline.** A matrix group can be
 re-run independently, advancing only its own `github.run_attempt`; `run-e2e-group` restores the
 previous attempt's `.last-run.json` to resume `--last-failed` targeting, and deliberately keeps
@@ -404,7 +422,7 @@ configured.
 | `ls-test` | `reusable-build.yml`, `schedule.yml` — runs the LS gradle suite, then aggregates and uploads coverage (see [Language server test coverage](#language-server-test-coverage)) |
 | `updateVersion` | `build`, `schedule.yml` — resolves and writes the version in the extension manifest |
 | `resolve-source-branch` | `schedule.yml` — the latest-`staging/*`-else-`main` resolution described under [The nightly branch](#the-nightly-branch) |
-| `run-e2e-group` | `reusable-build.yml`, `e2e-scheduled.yml` — runs one matrix group of the E2E suite (first attempt + `--last-failed` re-run) and uploads its artifacts; see [Scheduled E2E testing](#scheduled-e2e-testing) |
+| `run-e2e-group` | `reusable-build.yml`, `e2e-scheduled.yml` — runs one matrix group of the E2E suite (first attempt + `--last-failed` re-run) on a Linux or Windows runner and uploads its artifacts under a platform-tagged name; see [Scheduled E2E testing](#scheduled-e2e-testing) |
 | `release` | `release-pre-release.yml` — owns everything that materialises a release: the version commit, `release/<version>`, the tag, the GitHub release and its assets |
 | `pr` | `release-pre-release.yml` — opens the follow-up pull requests (release PR into `X.Y.x`, next-snapshot PR into `main`) + Google Chat notification |
 | `dailyBuildNotification` | `schedule.yml` — success chat notification |

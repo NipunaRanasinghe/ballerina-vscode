@@ -2,10 +2,11 @@ name: 'Run E2E test group'
 description: >-
   Runs one matrix group of the Ballerina e2e Playwright suite (first attempt, then a
   --last-failed re-run if needed) and uploads its results/recordings/project-data
-  artifacts. Shared by reusable-build.yml's BalE2ETest job and e2e-scheduled.yml's E2E
-  job — see "Scheduled E2E testing" in .github/workflows/README.md for the design
-  rationale. Assumes the workspace is already prepared (deps installed, Ballerina
-  distribution installed) by the calling job.
+  artifacts. Runs on both Linux and Windows runners; every artifact name carries the
+  platform so the two legs never collide. Shared by reusable-build.yml's BalE2ETest job
+  and e2e-scheduled.yml's E2E job — see "Scheduled E2E testing" in
+  .github/workflows/README.md for the design rationale. Assumes the workspace is already
+  prepared (deps installed, Ballerina distribution installed) by the calling job.
 inputs:
   group:
     description: 'Matrix group name, e.g. group1'
@@ -13,6 +14,14 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # Artifact names are lowercase ('linux', 'windows'). GitHub expressions have no
+    # lowercase function, so runner.os ('Linux'/'Windows') is folded here once rather
+    # than passed in as a second input the caller could contradict.
+    - name: Resolve platform label
+      shell: bash
+      id: platform
+      run: echo "label=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
     - name: Check for previous test results
       shell: bash
       if: github.run_attempt > 1
@@ -26,16 +35,22 @@ runs:
       uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       continue-on-error: true
       with:
-        name: Ballerina-e2e-test-results-linux-${{ inputs.group }}-${{ env.PREVIOUS_ATTEMPT }}
+        name: Ballerina-e2e-test-results-${{ steps.platform.outputs.label }}-${{ inputs.group }}-${{ env.PREVIOUS_ATTEMPT }}
         # Restored e2e-reports/ is deliberately kept, not discarded — see README.
         path: packages/ballerina-extension
 
-    - name: Install packages
+    # Linux only: the Windows runner already has an interactive desktop session, a
+    # working keyring, and no need for a virtual display or dbus.
+    - name: Install display and keyring packages
       shell: bash
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update -y
         sudo apt-get install -y xvfb ffmpeg gnome-keyring libsecret-1.0 dbus-x11
-        cd packages/ballerina-extension && npx playwright install
+
+    - name: Install Playwright browsers
+      shell: bash
+      run: cd packages/ballerina-extension && npx playwright install
 
     - name: Run Ballerina e2e Test (First Attempt)
       shell: bash
@@ -46,6 +61,15 @@ runs:
         # Not under test-results/ (Playwright's outputDir, wiped every invocation).
         PLAYWRIGHT_JSON_OUTPUT_FILE: e2e-reports/e2e-results-first.json
       run: |
+        # Windows runs VS Code headed on the runner's own desktop, so there is no xvfb
+        # display to create and no ffmpeg X11 screen grab to wrap the run in. Playwright's
+        # own per-test videos, screenshots and traces are still produced and uploaded;
+        # only the whole-session record.mp4 is Linux-only.
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          cd packages/ballerina-extension
+          pnpm exec playwright test -c e2e-test/playwright.config.js --grep ${{ inputs.group }}
+          exit
+        fi
         export $(dbus-launch)
         export DISPLAY=:98.0
         cd packages/ballerina-extension
@@ -59,6 +83,11 @@ runs:
         PLAYWRIGHT_JSON_OUTPUT_FILE: e2e-reports/e2e-results-rerun-${{ github.run_attempt }}.json
       run: |
         rm -rf packages/ballerina-extension/e2e-test/data/new-project
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          cd packages/ballerina-extension
+          pnpm exec playwright test -c e2e-test/playwright.config.js --grep ${{ inputs.group }} --last-failed
+          exit
+        fi
         export $(dbus-launch)
         export DISPLAY=:98.0
         cd packages/ballerina-extension
@@ -68,7 +97,7 @@ runs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       if: always()
       with:
-        name: Ballerina-e2e-test-results-linux-${{ inputs.group }}-${{ github.run_attempt }}
+        name: Ballerina-e2e-test-results-${{ steps.platform.outputs.label }}-${{ inputs.group }}-${{ github.run_attempt }}
         path: |
           packages/ballerina-extension/test-results/**
           packages/ballerina-extension/e2e-reports/**
@@ -79,7 +108,7 @@ runs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       if: always()
       with:
-        name: Ballerina-e2e-test-recording-linux-${{ inputs.group }}-${{ github.run_attempt }}
+        name: Ballerina-e2e-test-recording-${{ steps.platform.outputs.label }}-${{ inputs.group }}-${{ github.run_attempt }}
         path: |
           packages/ballerina-extension/e2e-test/test-resources/videos/**
           packages/ballerina-extension/e2e-test/test-resources/screenshots/**
@@ -91,7 +120,7 @@ runs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       if: always()
       with:
-        name: Ballerina-e2e-test-project-linux-${{ inputs.group }}-${{ github.run_attempt }}
+        name: Ballerina-e2e-test-project-${{ steps.platform.outputs.label }}-${{ inputs.group }}-${{ github.run_attempt }}
         path: |
           packages/ballerina-extension/e2e-test/data/new-project/**
         retention-days: 5
