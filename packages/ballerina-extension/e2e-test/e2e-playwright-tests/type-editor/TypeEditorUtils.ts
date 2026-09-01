@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Frame, Locator, Page } from '@playwright/test';
+import { expect, Frame, Locator, Page } from '@playwright/test';
 import { Form, switchToIFrame } from '@wso2/playwright-vscode-tester';
 import { BI_INTEGRATOR_LABEL } from '../utils/helpers';
 
@@ -405,6 +405,65 @@ export class TypeEditorUtils {
         await this.openTypeNodeMenuItem(name, 'edit', () =>
             methodButton.waitFor({ state: 'visible', timeout: 30000 })
                 .then(() => true).catch(() => false));
+    }
+
+    /**
+     * Select the "Create from scratch" tab in the New Type panel. The panel has
+     * been observed to come up on the Import tab, where the Kind dropdown
+     * createType() fills does not exist. Clicking the tab resets the form, so
+     * call this before filling anything.
+     */
+    async openCreateFromScratchTab(): Promise<void> {
+        // The tab button carries no testid; `create-from-scratch-tab` is the id
+        // of the content it reveals, which is what confirms the switch landed.
+        const tabButton = this.webView.getByRole('button', { name: /Create from scratch/ }).first();
+        await this.waitForElement(tabButton, 30000);
+        await tabButton.click({ force: true });
+        await this.waitForElement(this.webView.locator('[data-testid="create-from-scratch-tab"]'), 30000);
+    }
+
+    /**
+     * Open the Service Function form for a service class's `init` method from
+     * the designer's Constructor section. `init` is configured there rather
+     * than through the inline OperationForm, so this waits on the form's own
+     * (non-editable) name field as the post-condition.
+     */
+    async openInitFunctionForm(): Promise<void> {
+        const editInit = this.webView.getByTestId('edit-method-button-init');
+        await this.waitForElement(editInit, 30000);
+        await editInit.locator('i').click({ force: true });
+        await this.waitForElement(this.webView.getByRole('textbox', { name: /Function Name/ }).first(), 30000);
+    }
+
+    /**
+     * Add a parameter through the Service Function form's param manager.
+     */
+    async addFunctionParameter(name: string, type: string): Promise<void> {
+        // ParamManager's add affordance is a LinkButton, not a <button>.
+        const addParam = this.webView.locator('div:has(i.codicon-add) >> text=Add Parameter').first();
+        await this.waitForElement(addParam, 30000);
+        await addParam.click({ force: true });
+
+        // FormExpressionEditor exposes its label through `arialabel` on the
+        // vscode-text-area host; the editable node is its shadow-DOM textarea.
+        const typeField = this.webView.locator('vscode-text-area[arialabel="Parameter Type"] textarea').first();
+        await this.waitForElement(typeField, 30000);
+        await typeField.click({ force: true });
+        await typeField.fill(type);
+        await this.handleTypeCompletion(typeField);
+
+        const nameField = this.webView.getByRole('textbox', { name: /Parameter Name/ }).first();
+        await nameField.fill(name);
+
+        // Add stays disabled until the typed values validate; a force click
+        // before then silently no-ops and leaves the param editor open.
+        const addButton = this.webView.getByRole('button', { name: 'Add', exact: true });
+        await this.waitForElement(addButton, 15000);
+        await expect(addButton).toBeEnabled({ timeout: 30000 });
+        await addButton.click({ force: true });
+
+        // ParamItem takes the saved parameter's name as its testid prefix.
+        await this.waitForElement(this.webView.getByTestId(`${name}-item`), 30000);
     }
 
     /**
