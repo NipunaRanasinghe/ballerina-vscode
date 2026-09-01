@@ -292,13 +292,27 @@ const ViewTabs = styled.div`
     gap: 16px;
 `;
 
-const ViewTab = styled.div<{ active?: boolean }>`
+// A real button, styled to keep the h2-heading look the switch always had.
+const ViewTab = styled.button<{ active?: boolean }>`
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 8px 0;
+    font: inherit;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: inherit;
     cursor: ${(props: { active?: boolean }) => (props.active ? "default" : "pointer")};
     opacity: ${(props: { active?: boolean }) => (props.active ? 1 : 0.45)};
     transition: opacity 0.1s;
 
     &:hover {
         opacity: ${(props: { active?: boolean }) => (props.active ? 1 : 0.75)};
+    }
+
+    &:focus-visible {
+        outline: 1px solid var(--vscode-focusBorder);
+        outline-offset: 2px;
     }
 `;
 
@@ -1243,20 +1257,24 @@ export function PackageOverview(props: PackageOverviewProps) {
     const viewSwitch = !isLibrary ? (
         <ViewTabs role="tablist" aria-label="Overview view">
             <ViewTab
+                type="button"
                 role="tab"
                 aria-selected={overviewView === "design"}
+                aria-controls="overview-design-view"
                 active={overviewView === "design"}
                 onClick={() => setOverviewView("design")}
             >
-                <Title variant="h2">Design</Title>
+                Design
             </ViewTab>
             <ViewTab
+                type="button"
                 role="tab"
                 aria-selected={overviewView === "readme"}
+                aria-controls="overview-readme-view"
                 active={overviewView === "readme"}
                 onClick={() => setOverviewView("readme")}
             >
-                <Title variant="h2">Readme</Title>
+                Readme
             </ViewTab>
         </ViewTabs>
     ) : undefined;
@@ -1295,7 +1313,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                 <MainContent fullWidth={isLibrary} sideCollapsed={deployCollapsed}>
                     <LeftContent>
                         {overviewView === "readme" && !isLibrary ? (
-                            <ReadmePanel>
+                            <ReadmePanel id="overview-readme-view" role="tabpanel">
                                 <ReadmeHeaderContainer>
                                     {viewSwitch}
                                     <ReadmeButtonContainer>
@@ -1323,7 +1341,7 @@ export function PackageOverview(props: PackageOverviewProps) {
                                 </ReadmeContent>
                             </ReadmePanel>
                         ) : (
-                        <DiagramPanel noPadding={true} noBorder={isLibrary}>
+                        <DiagramPanel id="overview-design-view" role="tabpanel" noPadding={true} noBorder={isLibrary}>
                             {showAlert && (
                                 <AlertBoxWithClose
                                     subTitle={
