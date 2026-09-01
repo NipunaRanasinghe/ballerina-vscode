@@ -18,7 +18,10 @@
 
 import { expect, Frame, Locator, Page } from '@playwright/test';
 import { Form, switchToIFrame } from '@wso2/playwright-vscode-tester';
-import { BI_INTEGRATOR_LABEL } from '../utils/helpers';
+import { BI_INTEGRATOR_LABEL, domClick } from '../utils/helpers';
+
+/** How many times replaceLastFieldValue() re-enters a value that did not settle. */
+const REPLACE_VALUE_ATTEMPTS = 4;
 
 /**
  * Utility class for type editor test operations
@@ -208,7 +211,9 @@ export class TypeEditorUtils {
                 `original error: ${(error as Error).message}`
             );
         }
-        await addTypeButton.click();
+        // `force` — the floating Copilot orb/invite box has been observed to
+        // overlap and intercept pointer events on this button.
+        await addTypeButton.click({ force: true });
     }
 
     /**
@@ -630,6 +635,195 @@ export class TypeEditorUtils {
         if (isCurrentlyChecked !== checked) {
             await checkbox.click();
         }
+    }
+
+    /**
+     * Open the Add Type panel's "Create from scratch" tab. The panel keeps
+     * whichever tab was last used, so a test that runs after an import test
+     * cannot assume it. The tab buttons render outside the viewport at the
+     * test window size, which makes Playwright refuse even a force-click, so
+     * dispatch a real DOM click.
+     */
+    async openCreateFromScratchTab(): Promise<Locator> {
+        const content = this.webView.locator('[data-testid="create-from-scratch-tab"]');
+        if (!(await content.isVisible().catch(() => false))) {
+            await domClick(this.webView.getByRole('button', { name: 'Create from scratch' }));
+        }
+        await this.waitForElement(content, 30000);
+        return content;
+    }
+
+    /**
+     * Set the type name on the Create-from-scratch tab.
+     */
+    async setTypeName(name: string): Promise<void> {
+        const input = this.webView.getByRole('textbox', { name: 'Name' }).first();
+        await this.waitForElement(input, 30000);
+        await input.fill(name);
+    }
+
+    /**
+     * Add an empty record field row, leaving its default name and type.
+     *
+     * `add-field-button` is a div wrapping a `vscode-button`; the click handler
+     * sits on the inner button, so a DOM click on the div is a no-op. A
+     * force-click works, but the button can be reported outside the viewport
+     * while the panel is still laying out — retry until a row appears.
+     */
+    async addEmptyRecordField(): Promise<void> {
+        const addButton = this.webView.locator('[data-testid="add-field-button"]');
+        const rows = this.webView.locator('[data-testid="type-field"]');
+        const before = await rows.count();
+        const deadline = Date.now() + 30000;
+        while (Date.now() < deadline) {
+            if (await rows.count() > before) {
+                return;
+            }
+            await addButton.scrollIntoViewIfNeeded().catch(() => { });
+            await addButton.click({ force: true, timeout: 5000 }).catch(() => { });
+            await this.page.waitForTimeout(1000);
+        }
+        throw new Error('add-field-button never added a field row');
+    }
+
+    /**
+     * Replace the contents of the last field row's name or type box. Unlike
+     * fillIdentifierField()/fillTypeField() this clears the existing value
+     * instead of appending, and never accepts a type-helper suggestion — the
+     * point is to leave a value the user typed, valid or not.
+     *
+     * Deliberately a single fill() rather than keystrokes. The box is a
+     * `vscode-text-field` whose value is React-controlled, and on a loaded
+     * runner a re-render lands between the first two keystrokes and drops what
+     * was typed so far, leaving the value short of its leading characters —
+     * `NoSuchTypeHere` arrived as `oSuchTypeHere` on the Linux CI agent, and
+     * the same happens locally under 8x CPU throttling. Retyping does not help
+     * because the re-render is triggered by focusing the field, so every
+     * attempt loses the same characters. fill() sets the value in one input
+     * event, which that re-render cannot cut in half.
+     */
+    private async replaceLastFieldValue(testId: 'identifier-field' | 'type-field', value: string): Promise<void> {
+        const field = this.webView.locator(`[data-testid="${testId}"]`).last();
+        await this.waitForElement(field);
+        // `vscode-text-field` keeps the real <input> in its shadow root, which
+        // Playwright's CSS engine pierces. fill() and inputValue() both need
+        // that inner input — neither accepts the custom element wrapper.
+        const input = field.locator('input');
+        await this.waitForElement(input);
+
+        let settled = '';
+        for (let attempt = 1; attempt <= REPLACE_VALUE_ATTEMPTS; attempt++) {
+            await field.dblclick();
+            await input.fill(value);
+            if (testId === 'type-field') {
+                // The type helper panel opens on focus and covers the form.
+                await this.page.keyboard.press('Escape');
+            }
+            // A re-render can still clobber the whole value; that one is
+            // recoverable, because by the next attempt the field has settled.
+            settled = await this.waitForFieldValue(input, value);
+            if (settled === value) {
+                return;
+            }
+            console.log(`  ⚠️  ${testId} settled as ${JSON.stringify(settled)}, re-entering ` +
+                `${JSON.stringify(value)} (attempt ${attempt} of ${REPLACE_VALUE_ATTEMPTS})`);
+        }
+        throw new Error(
+            `expected the ${testId} to hold ${JSON.stringify(value)}, got ${JSON.stringify(settled)}`
+        );
+    }
+
+    /**
+     * Poll the input until it holds `expected`, and return whatever it holds
+     * when the wait ends. A re-render can still overwrite the box after it was
+     * filled, so the value is only treated as final once it has survived a
+     * further beat.
+     */
+    private async waitForFieldValue(input: Locator, expected: string, timeout: number = 10000): Promise<string> {
+        const deadline = Date.now() + timeout;
+        let current = await input.inputValue().catch(() => '');
+        while (Date.now() < deadline) {
+            if (current === expected) {
+                await this.page.waitForTimeout(500);
+                current = await input.inputValue().catch(() => '');
+                if (current === expected) {
+                    return current;
+                }
+                continue;
+            }
+            await this.page.waitForTimeout(250);
+            current = await input.inputValue().catch(() => '');
+        }
+        return current;
+    }
+
+    async setLastFieldName(name: string): Promise<void> {
+        await this.replaceLastFieldValue('identifier-field', name);
+    }
+
+    async setLastFieldType(type: string): Promise<void> {
+        await this.replaceLastFieldValue('type-field', type);
+    }
+
+    /**
+     * Diagnostics render through TextField's `errorMsg` -> `ErrorBanner` in the
+     * ui-toolkit, which carries no data-testid (and lives in `submodules/`, out
+     * of scope to change). The warning codicon is its only stable marker.
+     */
+    private fieldDiagnostics(panel: Locator): Locator {
+        return panel.locator('div:has(> i.codicon-warning)');
+    }
+
+    private async diagnosticTexts(panel: Locator): Promise<string[]> {
+        const texts = await this.fieldDiagnostics(panel).allInnerTexts().catch(() => []);
+        return texts.map((text) => text.trim()).filter(Boolean);
+    }
+
+    /**
+     * Wait for the given diagnostic message to be shown in the panel.
+     *
+     * Validation is debounced 250ms and then round-trips to the language
+     * server, and the banner can briefly show the message for an intermediate
+     * keystroke, so wait for the settled text rather than the first message
+     * that appears.
+     */
+    async verifyFieldDiagnostic(panel: Locator, message: string, timeout: number = 60000): Promise<void> {
+        const deadline = Date.now() + timeout;
+        let texts: string[] = [];
+        while (Date.now() < deadline) {
+            texts = await this.diagnosticTexts(panel);
+            if (texts.includes(message)) {
+                return;
+            }
+            await this.page.waitForTimeout(500);
+        }
+        throw new Error(
+            `expected diagnostic ${JSON.stringify(message)} in the type editor, got ${JSON.stringify(texts)}`
+        );
+    }
+
+    /**
+     * Wait until no diagnostic is shown in the panel.
+     */
+    async verifyNoFieldDiagnostic(panel: Locator, timeout: number = 60000): Promise<void> {
+        const deadline = Date.now() + timeout;
+        let texts: string[] = [];
+        while (Date.now() < deadline) {
+            texts = await this.diagnosticTexts(panel);
+            if (texts.length === 0) {
+                return;
+            }
+            await this.page.waitForTimeout(500);
+        }
+        throw new Error(`expected no diagnostic in the type editor, got ${JSON.stringify(texts)}`);
+    }
+
+    /**
+     * Close the type editor side panel, discarding whatever is in the form.
+     */
+    async closePanel(): Promise<void> {
+        await this.webView.locator('[data-testid="close-panel-btn"]').click({ force: true });
+        await this.waitForDiagramReady();
     }
 
     /**
