@@ -60,6 +60,12 @@ runs:
       env:
         # Not under test-results/ (Playwright's outputDir, wiped every invocation).
         PLAYWRIGHT_JSON_OUTPUT_FILE: e2e-reports/e2e-results-first.json
+        # Passed through env, not interpolated into the run: block below — a `${{ }}`
+        # expression is substituted into the script text before the shell parses it, so a
+        # caller-supplied group would be executed rather than matched. Both callers pass a
+        # literal matrix value today; this keeps that from being load-bearing. Same reason
+        # setup-ballerina/action.yml passes gradlePropertiesRef this way.
+        TEST_GROUP: ${{ inputs.group }}
       run: |
         # Windows runs VS Code headed on the runner's own desktop, so there is no xvfb
         # display to create and no ffmpeg X11 screen grab to wrap the run in. The suite
@@ -68,13 +74,13 @@ runs:
         # only the whole-session record.mp4 is Linux-only.
         if [ "$RUNNER_OS" = "Windows" ]; then
           cd packages/ballerina-extension
-          pnpm exec playwright test -c e2e-test/playwright.config.js --grep ${{ inputs.group }}
+          pnpm exec playwright test -c e2e-test/playwright.config.js --grep "$TEST_GROUP"
           exit
         fi
         export $(dbus-launch)
         export DISPLAY=:98.0
         cd packages/ballerina-extension
-        xvfb-run --server-num 98.0 -s "-ac -screen 0 1920x1080x24" bash -c "ffmpeg -y -nostdin -f x11grab -r 30 -s 1920x1080 -i :98.0 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -hide_banner -loglevel error record.mp4 & pnpm exec playwright test -c e2e-test/playwright.config.js --grep ${{ inputs.group }}"
+        xvfb-run --server-num 98.0 -s "-ac -screen 0 1920x1080x24" bash -c 'ffmpeg -y -nostdin -f x11grab -r 30 -s 1920x1080 -i :98.0 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -hide_banner -loglevel error record.mp4 & pnpm exec playwright test -c e2e-test/playwright.config.js --grep "$TEST_GROUP"'
 
     # Not run automatically on Windows: with maxFailures 10 and a 20-minute per-test
     # timeout, a second --last-failed pass over platform failures can spend what is left
@@ -88,17 +94,19 @@ runs:
       env:
         # run_attempt-suffixed so a second re-run doesn't overwrite the first's report.
         PLAYWRIGHT_JSON_OUTPUT_FILE: e2e-reports/e2e-results-rerun-${{ github.run_attempt }}.json
+        # See the first-attempt step for why this is an env var and not an interpolation.
+        TEST_GROUP: ${{ inputs.group }}
       run: |
         rm -rf packages/ballerina-extension/e2e-test/data/new-project
         if [ "$RUNNER_OS" = "Windows" ]; then
           cd packages/ballerina-extension
-          pnpm exec playwright test -c e2e-test/playwright.config.js --grep ${{ inputs.group }} --last-failed
+          pnpm exec playwright test -c e2e-test/playwright.config.js --grep "$TEST_GROUP" --last-failed
           exit
         fi
         export $(dbus-launch)
         export DISPLAY=:98.0
         cd packages/ballerina-extension
-        xvfb-run --server-num 98.0 -s "-ac -screen 0 1920x1080x24" bash -c "ffmpeg -y -nostdin -f x11grab -r 30 -s 1920x1080 -i :98.0 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -hide_banner -loglevel error record.mp4 & pnpm exec playwright test -c e2e-test/playwright.config.js --grep ${{ inputs.group }} --last-failed"
+        xvfb-run --server-num 98.0 -s "-ac -screen 0 1920x1080x24" bash -c 'ffmpeg -y -nostdin -f x11grab -r 30 -s 1920x1080 -i :98.0 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -hide_banner -loglevel error record.mp4 & pnpm exec playwright test -c e2e-test/playwright.config.js --grep "$TEST_GROUP" --last-failed'
 
     - name: Upload Ballerina e2e Test results
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
