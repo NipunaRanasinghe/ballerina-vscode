@@ -62,8 +62,9 @@ runs:
         PLAYWRIGHT_JSON_OUTPUT_FILE: e2e-reports/e2e-results-first.json
       run: |
         # Windows runs VS Code headed on the runner's own desktop, so there is no xvfb
-        # display to create and no ffmpeg X11 screen grab to wrap the run in. Playwright's
-        # own per-test videos, screenshots and traces are still produced and uploaded;
+        # display to create and no ffmpeg X11 screen grab to wrap the run in. The suite
+        # captures its own failure screenshots (setup.ts) and session video (test.list.ts)
+        # on both platforms, and BI_E2E_TRACE keeps traces working where retries are 0;
         # only the whole-session record.mp4 is Linux-only.
         if [ "$RUNNER_OS" = "Windows" ]; then
           cd packages/ballerina-extension
@@ -75,9 +76,15 @@ runs:
         cd packages/ballerina-extension
         xvfb-run --server-num 98.0 -s "-ac -screen 0 1920x1080x24" bash -c "ffmpeg -y -nostdin -f x11grab -r 30 -s 1920x1080 -i :98.0 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -hide_banner -loglevel error record.mp4 & pnpm exec playwright test -c e2e-test/playwright.config.js --grep ${{ inputs.group }}"
 
+    # Not run automatically on Windows: with maxFailures 10 and a 20-minute per-test
+    # timeout, a second --last-failed pass over platform failures can spend what is left
+    # of the 60-minute budget and get the leg killed before it uploads anything, which is
+    # the same cost BI_E2E_RETRIES: 0 removes from the first attempt. The re-run still
+    # happens on a manual "Re-run failed jobs" (check-results success), which is the
+    # resume path it exists for.
     - name: Run Failed Ballerina e2e Test (Re-run)
       shell: bash
-      if: steps.run-tests-first.outcome == 'failure' || steps.check-results.outcome == 'success'
+      if: (steps.run-tests-first.outcome == 'failure' && runner.os != 'Windows') || steps.check-results.outcome == 'success'
       env:
         # run_attempt-suffixed so a second re-run doesn't overwrite the first's report.
         PLAYWRIGHT_JSON_OUTPUT_FILE: e2e-reports/e2e-results-rerun-${{ github.run_attempt }}.json

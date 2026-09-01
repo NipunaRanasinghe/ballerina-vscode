@@ -241,8 +241,9 @@ between nightly builds would fail the whole suite in a way indistinguishable fro
 `run-e2e-group` lowercases `runner.os` into a platform label and puts it in every artifact name
 (`Ballerina-e2e-test-results-windows-group1-1`), and skips the Linux-only setup on Windows: no
 `apt-get`, no `xvfb`, no `dbus`, and no `ffmpeg` X11 screen grab, because the Windows runner already
-has a desktop session. Playwright's own per-test videos, screenshots and traces are recorded on both
-platforms; only the whole-session `record.mp4` is Linux-only. `Prepare` publishes the platform list
+has a desktop session. The suite captures its own failure screenshots (`setup.ts`) and session video
+(`test.list.ts`) on both platforms — these do not come from Playwright's `use.video`/`use.screenshot`,
+which are both `off`; only the whole-session `record.mp4` is Linux-only. `Prepare` publishes the platform list
 as an output so the matrix and `Report`'s download/aggregation loops read the same list.
 
 **Windows runs but does not gate.** The Windows legs set `continue-on-error`, and `Report` turns a
@@ -256,7 +257,9 @@ Windows file locks behind. Those are tracked separately.
 
 There are three places that let Windows through, and making it a gate means reverting all three: the
 `continue-on-error` expression on the `E2E` job, the `windows` branch in `Report`'s download loop,
-and the `windows` branch in `Report`'s aggregation loop.
+and the `windows` branch in `Report`'s aggregation loop. The `runner.os != 'Windows'` guard on
+`run-e2e-group`'s re-run step should come off at the same time, since a gating platform wants the
+`--last-failed` pass back.
 
 **The Windows legs run with `BI_E2E_RETRIES: 0`.** `playwright.config.js` otherwise retries a failed
 test twice, and the suite is serial (`workers: 1`) with a 20-minute per-test timeout — so while the
@@ -267,6 +270,15 @@ phase exists to measure; the cost is that Windows flakiness is not distinguishab
 failure until retries are turned back on. `maxFailures: 10` is deliberately left alone: it truncates
 a badly-failing group early, which is what keeps a leg inside the job timeout and producing an
 artifact at all.
+
+Two things follow from zero retries. `run-e2e-group`'s `--last-failed` re-run is a second whole
+invocation whose condition is independent of the retry count, so on Windows it is skipped on a first
+attempt — it would re-execute up to ten platform failures against what is left of the 60-minute
+budget, which is the cost zero retries removes from the first pass. It still runs on a manual
+"Re-run failed jobs", the resume path it exists for. And `trace: 'on-first-retry'` captures nothing
+when nothing is retried, so the Windows legs set `BI_E2E_TRACE: retain-on-first-failure`; the trace
+is the only one of the three diagnostics that depends on a retry, since the screenshots and video are
+the suite's own.
 
 **Handles GitHub's "Re-run failed jobs" across the whole pipeline.** A matrix group can be
 re-run independently, advancing only its own `github.run_attempt`; `run-e2e-group` restores the
