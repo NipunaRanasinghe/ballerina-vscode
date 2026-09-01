@@ -258,7 +258,9 @@ Windows file locks behind. Those are tracked separately.
 There are four places that let Windows through, and making it a gate means reverting all four: the
 `continue-on-error` expression on the `E2E` job, the `windows` branch in `Report`'s download loop,
 the `windows` branch in `Report`'s aggregation loop, and the `runner.os != 'Windows'` guard on
-`run-e2e-group`'s re-run step — a gating platform wants the `--last-failed` pass back.
+`run-e2e-group`'s re-run step — a gating platform wants the `--last-failed` pass back. That guard
+pairs with the `Surface Windows first-attempt failure` step just above it, which exists only because
+the guard removes the one step that would otherwise fail the job; drop both together.
 
 **The Windows legs run with `BI_E2E_RETRIES: 0`.** `playwright.config.js` otherwise retries a failed
 test twice, and the suite is serial (`workers: 1`) with a 20-minute per-test timeout — so while the

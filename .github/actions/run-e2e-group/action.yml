@@ -82,6 +82,17 @@ runs:
         cd packages/ballerina-extension
         xvfb-run --server-num 98.0 -s "-ac -screen 0 1920x1080x24" bash -c 'ffmpeg -y -nostdin -f x11grab -r 30 -s 1920x1080 -i :98.0 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart -hide_banner -loglevel error record.mp4 & pnpm exec playwright test -c e2e-test/playwright.config.js --grep "$TEST_GROUP"'
 
+    # The first-attempt step is continue-on-error, and the re-run below — the only step
+    # that turns a test failure into a job failure — is skipped on Windows. Without this,
+    # no Windows step ever fails, the job-level continue-on-error never fires, and
+    # removing that expression to start gating would change nothing. Re-asserting the
+    # outcome here keeps the four reversions in the README order-independent. Remove this
+    # together with the re-run guard below.
+    - name: Surface Windows first-attempt failure
+      shell: bash
+      if: runner.os == 'Windows' && steps.run-tests-first.outcome == 'failure'
+      run: exit 1
+
     # Not run automatically on Windows: with maxFailures 10 and a 20-minute per-test
     # timeout, a second --last-failed pass over platform failures can spend what is left
     # of the 60-minute budget and get the leg killed before it uploads anything, which is
