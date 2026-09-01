@@ -67,6 +67,7 @@ export class VisualizerWebview {
 
     constructor() {
         this._panel = VisualizerWebview.createWebview();
+        agentStatusManager.setVisualizerVisible(this._panel.visible);
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         this._panel.webview.html = this.getWebviewContent(this._panel.webview);
         RPCLayer.create(this._panel);
@@ -171,6 +172,7 @@ export class VisualizerWebview {
 
         this._panel.onDidChangeViewState(() => {
             vscode.commands.executeCommand('setContext', 'isBalVisualizerActive', this._panel?.active);
+            agentStatusManager.setVisualizerVisible(!!this._panel?.visible);
             if (this._panel?.active) {
                 setCompanionVisualizer();
             }
@@ -367,6 +369,7 @@ export class VisualizerWebview {
         approvalViewManager.onVisualizerClosed();
         // The overview composer and orb can't send their unmount signals once the webview is gone.
         agentStatusManager.setInlineStatusVisible(false);
+        agentStatusManager.setVisualizerVisible(false);
         vscode.commands.executeCommand('setContext', 'ballerina.copilotAmbientPresent', false);
         clearFormState();
 

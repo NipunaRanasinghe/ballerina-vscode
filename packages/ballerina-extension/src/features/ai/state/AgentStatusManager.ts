@@ -50,6 +50,9 @@ class AgentStatusManager {
     private aiPanelVisible = false;
     /** An in-view surface (the overview composer) is already reporting the status inline. */
     private inlineStatusVisible = false;
+    // retainContextWhenHidden keeps the composer mounted (and its inline flag set) while the
+    // visualizer tab is buried, so the flag only counts while the panel is actually on screen.
+    private visualizerVisible = false;
 
     init(context: vscode.ExtensionContext): void {
         if (this.statusBarItem) {
@@ -142,6 +145,14 @@ class AgentStatusManager {
         this.render();
     }
 
+    setVisualizerVisible(visible: boolean): void {
+        if (this.visualizerVisible === visible) {
+            return;
+        }
+        this.visualizerVisible = visible;
+        this.render();
+    }
+
     setAiPanelVisible(visible: boolean): void {
         if (this.aiPanelVisible === visible) {
             return;
@@ -201,7 +212,7 @@ class AgentStatusManager {
         // and nothing on screen already reporting it — a visible panel, or the
         // overview composer's inline status. A panel open but hidden behind another
         // tab still needs the status bar.
-        if (this.status.state === 'idle' || this.aiPanelVisible || this.inlineStatusVisible) {
+        if (this.status.state === 'idle' || this.aiPanelVisible || (this.inlineStatusVisible && this.visualizerVisible)) {
             this.statusBarItem.hide();
             return;
         }
