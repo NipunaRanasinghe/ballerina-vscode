@@ -255,11 +255,10 @@ the suite are still Linux-only — a `zip` shell-out for failure snapshots, a `b
 does not resolve `bal.bat`, a hard-coded `/tmp` path in one spec, and `SIGKILL` teardown that leaves
 Windows file locks behind. Those are tracked separately.
 
-There are three places that let Windows through, and making it a gate means reverting all three: the
+There are four places that let Windows through, and making it a gate means reverting all four: the
 `continue-on-error` expression on the `E2E` job, the `windows` branch in `Report`'s download loop,
-and the `windows` branch in `Report`'s aggregation loop. The `runner.os != 'Windows'` guard on
-`run-e2e-group`'s re-run step should come off at the same time, since a gating platform wants the
-`--last-failed` pass back.
+the `windows` branch in `Report`'s aggregation loop, and the `runner.os != 'Windows'` guard on
+`run-e2e-group`'s re-run step — a gating platform wants the `--last-failed` pass back.
 
 **The Windows legs run with `BI_E2E_RETRIES: 0`.** `playwright.config.js` otherwise retries a failed
 test twice, and the suite is serial (`workers: 1`) with a 20-minute per-test timeout — so while the
