@@ -475,13 +475,19 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
     const runDetail = state === "completed" ? undefined : status?.label;
     const showOpenCopilot = !aiPanelOpen;
 
+    // A failed chip stays visible until removed instead of being silently dropped on send.
+    const attachmentsReady = attachments.every((a) => a.status === AttachmentStatus.Success);
+    const canSend = text.trim().length > 0 && attachmentsReady;
+
     const send = async (prompt: string) => {
         const trimmed = prompt.trim();
-        const ready = attachments.filter((a) => a.status === AttachmentStatus.Success);
+        if (!trimmed || !attachmentsReady) {
+            return;
+        }
         // Entering from this page always starts a fresh chat, not the current thread.
         const handedOff = await submitPromptToCopilot(rpcClient, trimmed, {
             planMode: agentMode === AgentMode.Plan,
-            attachments: ready,
+            attachments,
             newThread: true,
         });
         if (handedOff) {
@@ -531,7 +537,7 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
                                     onKeyDown={(event) => {
                                         if (event.key === "Enter" && !event.shiftKey) {
                                             event.preventDefault();
-                                            if (text.trim()) {
+                                            if (canSend) {
                                                 void send(text);
                                             }
                                         }
@@ -569,9 +575,9 @@ export function CopilotComposer({ onAddArtifactManually, hiding }: CopilotCompos
                                         </ComposerActionButton>
                                         <ComposerActionButton
                                             type="button"
-                                            title="Send to WSO2 Integration Intelligence"
+                                            title={attachmentsReady ? "Send to WSO2 Integration Intelligence" : "Remove failed attachments to send"}
                                             aria-label="Send to WSO2 Integration Intelligence"
-                                            disabled={!text.trim()}
+                                            disabled={!canSend}
                                             onClick={() => void send(text)}
                                         >
                                             <Icon name="Send" sx={{ fontSize: "16px" }} />
