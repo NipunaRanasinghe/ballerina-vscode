@@ -99,8 +99,10 @@ const CrossFadeLayer = styled.div<{ $show: boolean; $center?: boolean }>`
     align-items: ${(props: { $center?: boolean }) => (props.$center ? "center" : "stretch")};
     justify-content: ${(props: { $center?: boolean }) => (props.$center ? "center" : "stretch")};
     opacity: ${(props: { $show: boolean }) => (props.$show ? 1 : 0)};
+    // visibility (not just opacity) keeps the faded-out layer's buttons out of the tab order.
+    visibility: ${(props: { $show: boolean }) => (props.$show ? "visible" : "hidden")};
     pointer-events: ${(props: { $show: boolean }) => (props.$show ? "auto" : "none")};
-    transition: opacity 240ms ease;
+    transition: opacity 240ms ease, visibility 240ms;
 `;
 
 const PageLayout = styled.div`
