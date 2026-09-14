@@ -28,7 +28,7 @@ import {
     SearchNodesQuery,
     SearchNodesTypeConstraint,
 } from "@wso2/ballerina-core";
-import { Button, Codicon, LinkButton, ProgressRing, ThemeColors } from "@wso2/ui-toolkit";
+import { Button, Codicon, Icon, LinkButton, ProgressRing, ThemeColors } from "@wso2/ui-toolkit";
 import { FormField } from "../../../Form/types";
 import { NodeReferenceSelect, NodeReferenceSelectItem } from "../../NodeReferenceSelect";
 import { useFormContext } from "../../../../context";
@@ -53,12 +53,24 @@ const EmptyPromptText = styled.div`
 
 export type NodeReferenceFilter = { module?: string; object?: string };
 
+const NEW_CONNECTION_SENTINEL = "NEW_CONNECTION";
+
 interface NodeReferenceSelectEditorProps {
     value: string;
     field: FormField;
     onChange: (value: string, cursorPosition: number) => void;
     nodeReferenceFilters?: NodeReferenceFilter[];
 }
+
+const SelectRow = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    > *:first-of-type {
+        flex: 1;
+        min-width: 0;
+    }
+`;
 
 const AddButtons = styled.div`
     display: flex;
@@ -69,6 +81,9 @@ const AddButtons = styled.div`
 
 // Recursively flatten search categories (which may nest Categories within their
 // items) down to AvailableNodes.
+const emptyStateKindWord = (searchNodesKind?: string): string =>
+    searchNodesKind && searchNodesKind !== "NEW_CONNECTION" ? formatMethodName(searchNodesKind) : "Connection";
+
 const flattenAvailableNodes = (items: Item[] | undefined): AvailableNode[] => {
     const out: AvailableNode[] = [];
     for (const item of items ?? []) {
@@ -86,7 +101,7 @@ function ensureValueInItems(
     value: string,
     searchNodesKind?: string,
 ): NodeReferenceSelectItem[] {
-    if (!value || items.some(item => item.value === value)) {
+    if (!value || value === NEW_CONNECTION_SENTINEL || items.some(item => item.value === value)) {
         return items;
     }
     return [
@@ -188,7 +203,7 @@ export const NodeReferenceSelectEditor: React.FC<NodeReferenceSelectEditorProps>
     }, []);
 
     useEffect(() => {
-        if (!value || selectItems.some(item => item.value === value)) return;
+        if (!value || value === NEW_CONNECTION_SENTINEL || selectItems.some(item => item.value === value)) return;
         setSelectItems(prev => ensureValueInItems(prev, value, searchNodesKind));
         fetchItems(true);
     }, [value]);
@@ -259,12 +274,13 @@ export const NodeReferenceSelectEditor: React.FC<NodeReferenceSelectEditorProps>
         ?? (creationCodeData?.module ? formatMethodName(creationCodeData.module.split(".").pop() ?? "") : "");
     const isAgentReference = !!agentCodeData;
     const qualifier = creationName ? `${creationName} ` : "";
+    const kindWord = emptyStateKindWord(searchNodesKind);
     const emptyTitle = isAgentReference
         ? `No ${creationName || "agent"} in this project`
-        : `No ${qualifier}connection in this project`;
+        : `No ${qualifier}${kindWord.toLowerCase()} in this project`;
     const emptyAction = isAgentReference
         ? `Create ${creationName || "Agent"}`
-        : `Create ${qualifier}Connection`;
+        : `Create ${qualifier}${kindWord}`;
     const showEmptyPrompt = showCreateNew && !loading && !field.optional && selectItems.length === 0;
 
     const handleCreateNode = () => onCreateNode(
@@ -287,15 +303,22 @@ export const NodeReferenceSelectEditor: React.FC<NodeReferenceSelectEditorProps>
 
     return (
         <>
-            <NodeReferenceSelect
-                id={field.key}
-                items={selectItems}
-                value={value}
-                required={!field.optional}
-                disabled={!field.editable}
-                loading={loading}
-                onChange={(val) => onChange(val, val?.length)}
-            />
+            <SelectRow>
+                <NodeReferenceSelect
+                    id={field.key}
+                    items={selectItems}
+                    value={value}
+                    required={!field.optional}
+                    disabled={!field.editable}
+                    loading={loading}
+                    onChange={(val) => onChange(val, val?.length)}
+                />
+                {field.editCallback && value && (
+                    <Button appearance="icon" tooltip={`Configure ${value}`} onClick={() => field.editCallback(value)}>
+                        <Icon name="bi-edit" sx={{ width: 18, height: 18, fontSize: 18 }} />
+                    </Button>
+                )}
+            </SelectRow>
             {showConnectorActions && (
                 <AddButtons>
                     {connectors.map((c, i) => {
