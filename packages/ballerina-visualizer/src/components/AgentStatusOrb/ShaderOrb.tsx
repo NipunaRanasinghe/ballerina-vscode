@@ -102,29 +102,47 @@ void main() {
     float warpStrength = 1.4 + 1.2 * u_energy;
     float f = fbm(uv * 2.2 + warpStrength * q + vec2(t * 0.3, -t * 0.2));
 
-    // Narrow mix bands + a luminance term keep the flow visible even when
-    // the palette hues are close (the structure reads as light/dark, not
-    // just hue shifts).
-    // Narrower bands => crisper light/dark boundaries that sweep as the field
-    // flows, so the motion reads even when the palette is a single hue.
-    float band = smoothstep(0.36, 0.66, f);
-    vec3 col = mix(u_c0, u_c1, band);
-    float f2 = fbm(uv * 3.0 - q + vec2(-t * 0.25, t * 0.35));
-    col = mix(col, u_c2, smoothstep(0.4, 0.74, f2) * (0.6 + 0.4 * u_energy));
-    // Wider brightness swing tracking the flow => more visible movement.
-    col *= 0.48 + 1.15 * f;
+    // What you see through the bubble: a near-black core with just enough flow
+    // that it isn't dead still. Sampling the reference render's radial profile
+    // puts the core around 4% luminance all the way out to r 0.72, so nearly
+    // everything visible lives in the thin film below — a hollow shell, not a
+    // shaded ball.
+    vec3 col = u_c0 * (0.5 + 0.3 * f);
 
-    // Slight glass highlight (the Gloss overlay adds the main reflection)
-    // and gentle spherical shading toward the rim.
-    float highlight = pow(max(0.0, 1.0 - length(uv - vec2(-0.38, 0.42))), 2.0);
-    col += vec3(1.0) * highlight * 0.18;
-    col *= 0.85 + 0.2 * (1.0 - r);
+    // The film itself: one narrow band that ramps up close to the silhouette
+    // and drops away again at the very edge. Those radii trace the reference's
+    // measured profile (rises from ~0.80, peaks ~0.92, gone by 1.0), and the
+    // peak has to stay clear of the alpha feather below — a band that bright
+    // sitting in the feather washes out against a light editor background.
+    float shell = smoothstep(0.84, 0.93, r) * smoothstep(1.0, 0.94, r);
 
-    // Soft rim light so the sphere pops on dark and light themes.
-    float rim = smoothstep(0.55, 0.98, r) * smoothstep(1.02, 0.98, r);
-    col += mix(u_c1, u_c2, 0.5) * rim * 0.45;
+    // Hue across the film: a warm pair of streaks and a cool pair 90 degrees
+    // apart, each pair opposite itself, the whole set rotating clockwise at
+    // ~33 deg/sec (one turn every ~11s). u_time is deliberately raw here, so
+    // the film turns at the same rate in every run state while u_energy keeps
+    // driving only the interior flow.
+    float a = atan(uv.y, uv.x) + u_time * 0.58 - 1.5708;
+    float w = pow(abs(cos(a)), 8.0);
+    float c = pow(abs(sin(a)), 8.0);
+    // Whitening is scaled by lobe strength, not applied flat, so the streak
+    // cores go pale while the gaps between them stay dark. Landing just under
+    // clipping is what keeps this reading as a tinted film: the reference peaks
+    // at ~(245,188,124) warm and ~(171,224,243) cool, never at blown-out white.
+    vec3 streak = u_c2 * w + u_c1 * c;
+    col += mix(streak, vec3(w + c), 0.38) * shell * 1.25;
 
-    float mask = smoothstep(1.0, 0.94, r);
+    // Broad soft sheen riding the upper-left of the film. Kept faint: it lifts
+    // the whole ring, and the gaps between the streaks have to stay dark or the
+    // film reads as a uniform bezel instead of light caught in glass.
+    float sheen = pow(max(0.0, 1.0 - length(uv - vec2(-0.33, 0.40)) / 1.15), 3.0);
+    col += vec3(1.0) * sheen * shell * 0.12;
+
+    // The bubble's far wall, just inside the film, carrying the opposite pair.
+    float inner = smoothstep(0.74, 0.79, r) * smoothstep(0.90, 0.82, r);
+    col += (u_c2 * c + u_c1 * w) * inner * 0.35;
+
+    // Feather only wide enough to anti-alias the silhouette.
+    float mask = smoothstep(1.0, 0.97, r);
     gl_FragColor = vec4(col * mask, mask);
 }
 `;

@@ -199,14 +199,12 @@ interface SphereProps {
 }
 
 /**
- * CSS gradient sphere — the fallback when a WebGL context can't be created,
- * and the primary rendering for small indicators where a live GL context per
- * orb isn't worth it (the chat footer's 16px "Generating" dot).
+ * CSS gradient sphere — the rendering for small indicators, where a live GL
+ * context per orb isn't worth it (the chat footer's 16px "Generating" dot).
+ * Orb-sized surfaces use `GlassSphere` below instead.
  *
  * It animates on its own rather than sitting still: a slow breathing pulse
- * plus a drifting highlight, both scaled by `energy`. That keeps the
- * WebGL-failure path from looking frozen wherever Sphere stands in for
- * ShaderOrb.
+ * plus a drifting highlight, both scaled by `energy`, so it never looks frozen.
  */
 export const Sphere = styled.div<SphereProps>`
     position: absolute;
@@ -295,6 +293,104 @@ export const Sphere = styled.div<SphereProps>`
 
         &::before {
             display: none;
+        }
+    }
+`;
+
+const rimSpin = keyframes`
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+`;
+
+interface GlassSphereProps {
+    colors: [string, string, string];
+}
+
+/**
+ * The rim's angular color ramp: a warm pair and a cool pair of streaks 90
+ * degrees apart, each pair repeating every 180 degrees. Peaks are mixed toward
+ * white because the streak cores read as blown out, and the stops fall to
+ * transparent between lobes so the dark gaps stay crisp instead of smearing
+ * warm into cool.
+ */
+function rimRamp(colors: [string, string, string], from: string): string {
+    const cool = colors[1];
+    const warm = colors[2];
+    const hot = (color: string) => `color-mix(in srgb, ${color} 35%, #ffffff)`;
+    const fade = (color: string) => `color-mix(in srgb, ${color} 30%, transparent)`;
+    return `repeating-conic-gradient(
+        from ${from},
+        ${hot(warm)} 0deg,
+        ${warm} 9deg,
+        ${fade(warm)} 24deg,
+        transparent 40deg,
+        transparent 50deg,
+        ${fade(cool)} 66deg,
+        ${hot(cool)} 90deg,
+        ${cool} 99deg,
+        ${fade(cool)} 114deg,
+        transparent 130deg,
+        transparent 140deg,
+        ${fade(warm)} 156deg,
+        ${hot(warm)} 180deg
+    )`;
+}
+
+/**
+ * CSS glass bubble — the `simple` orb theme, and the fallback when a WebGL
+ * context can't be created. Mirrors what `ShaderOrb` renders: a dark body, a
+ * thin rim carrying the warm/cool streak pairs, and a dimmer inner wall
+ * carrying the opposite pair, the whole set turning once every 11s (the same
+ * rate the shader spins its rim).
+ *
+ * Deliberately not used for small indicators: at ~16px the four lobes collapse
+ * into unreadable specks, so the chat footer's dot keeps the filled `Sphere`.
+ */
+export const GlassSphere = styled.div<GlassSphereProps>`
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle at 34% 26%,
+        color-mix(in srgb, ${(props: GlassSphereProps) => props.colors[0]} 76%, #ffffff) 0%,
+        ${(props: GlassSphereProps) => props.colors[0]} 46%,
+        color-mix(in srgb, ${(props: GlassSphereProps) => props.colors[0]} 72%, #000000) 100%
+    );
+    box-shadow:
+        inset 0 -5px 12px rgba(0, 0, 0, 0.45),
+        0 0 14px color-mix(in srgb, ${(props: GlassSphereProps) => props.colors[1]} 40%, transparent);
+
+    /* Outer rim. */
+    &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: ${(props: GlassSphereProps) => rimRamp(props.colors, "0deg")};
+        -webkit-mask: radial-gradient(closest-side, transparent 88%, #000 97%);
+        mask: radial-gradient(closest-side, transparent 88%, #000 97%);
+        animation: ${rimSpin} 11s linear infinite;
+        pointer-events: none;
+    }
+
+    /* Inner glass wall — the opposite pair, dimmer and further in. */
+    &::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: ${(props: GlassSphereProps) => rimRamp(props.colors, "90deg")};
+        -webkit-mask: radial-gradient(closest-side, transparent 70%, #000 80%, #000 85%, transparent 92%);
+        mask: radial-gradient(closest-side, transparent 70%, #000 80%, #000 85%, transparent 92%);
+        opacity: 0.4;
+        animation: ${rimSpin} 11s linear infinite;
+        pointer-events: none;
+    }
+
+    @media (prefers-reduced-motion: reduce), (forced-colors: active) {
+        &::before,
+        &::after {
+            animation: none;
         }
     }
 `;
@@ -575,9 +671,9 @@ export function subscribeAmbientCopilotPresence(listener: (present: boolean) => 
     };
 }
 
-// animated: WebGL core + brand ring (default). simple: CSS sphere, no ring — also
-// the fallback when animated can't render. Add a theme by appending it here and to
-// the `ballerina.copilot.orbTheme` enum.
+// animated: WebGL shader glass bubble (default). simple: the CSS GlassSphere,
+// which stands in for it — also the fallback when animated can't render. Add a
+// theme by appending it here and to the `ballerina.copilot.orbTheme` enum.
 export const ORB_THEMES = ["animated", "simple"] as const;
 export type OrbTheme = typeof ORB_THEMES[number];
 

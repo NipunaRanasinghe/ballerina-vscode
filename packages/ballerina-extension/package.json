@@ -219,8 +219,8 @@
                         "Simple"
                     ],
                     "enumDescriptions": [
-                        "Animated orb with a glowing ring. Uses the simple orb when it cannot render.",
-                        "Simple gradient orb without a ring."
+                        "Orb rendered with WebGL. Uses the simple orb when WebGL is unavailable.",
+                        "Orb rendered with CSS gradients. Costs less to render than the WebGL orb."
                     ],
                     "default": "animated",
                     "description": "Copilot orb style."

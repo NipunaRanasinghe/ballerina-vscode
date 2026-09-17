@@ -17,25 +17,23 @@
  */
 
 /**
- * Theme-driven colors for the ambient Copilot surfaces.
+ * Colors for the ambient Copilot surfaces.
  *
- * The orb takes its identity from the VS Code primary accent
- * (`--vscode-button-background`) so it matches the BI extension's own look and
- * changes with the editor theme, instead of a fixed standalone palette. The
- * transient run states keep a color-coded meaning, but sourced from VS Code
- * semantic tokens so they too follow light/dark and custom themes.
+ * The orb's own sphere/shader colors are a fixed branded duotone (a dark
+ * glass-ball base plus a warm/cool accent pair) — a deliberate standalone
+ * identity rather than one that follows the editor theme, so the companion
+ * reads the same everywhere it appears. The cool accent stays constant; the
+ * warm accent shifts per run state so awaiting-input/completed/error are
+ * still distinguishable by hue.
  *
- * CSS surfaces can consume `stateColorVar()` (a `var(--vscode-*)` string) and
- * theme-react for free. The WebGL shader (`ShaderOrb`) cannot read CSS vars, so
- * it needs concrete hex; `useOrbColors()` resolves the token to a hex triad and
- * re-resolves whenever the theme changes.
+ * The ambient input frame (`AmbientFrame`, via `stateColorVar()` /
+ * `ambientBorderColor()`) is a separate, still theme-driven surface: it's a
+ * thin highlight around existing VS Code UI, so it keeps following
+ * `--vscode-*` tokens to stay consistent with the rest of the editor.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useMemo } from "react";
 import { AgentRunState } from "@wso2/ballerina-core";
-
-/** BI's `DefaultColors.PRIMARY` (@wso2/ui-toolkit) — used only if resolution fails. */
-const FALLBACK_ACCENT = "#5567D5";
 
 type Rgb = [number, number, number];
 type Hsl = [number, number, number];
@@ -143,110 +141,30 @@ export function shiftLightness(hex: string, delta: number): string {
     return rgbToHex(hslToRgb([h, s, clamp(l + delta, 0.06, 0.96)]));
 }
 
-/** Parse legacy comma-separated and modern space-separated CSS rgb() values. */
-function parseRgbFunc(value: string): Rgb | null {
-    const match = value.trim().match(/^rgba?\((.*)\)$/i);
-    if (!match) {
-        return null;
-    }
-    const content = match[1].trim();
-    const components = content.includes(",")
-        ? content.split(",")
-        : content.split(/\s*\/\s*/)[0].trim().split(/\s+/);
-    const channels = components.slice(0, 3).map((component) => {
-        const channel = component.trim().match(/^(\d+(?:\.\d+)?|\.\d+)(%)?$/);
-        if (!channel) {
-            return null;
-        }
-        const value = Number(channel[1]);
-        return channel[2] ? value * 2.55 : value;
-    });
-    if (components.length < 3 || channels.some((channel) => channel === null)) {
-        return null;
-    }
-    return channels as Rgb;
-}
+/** The orb's fixed dark glass-ball base — independent of the VS Code theme. */
+const ORB_DARK_BASE = "#0a0e1a";
+
+/** The orb's cool accent — constant across every run state. */
+const ORB_COOL_ACCENT = "#4db8ff";
+
+/** The orb's warm accent per run state — the half of the duotone that still carries the status signal. */
+const ORB_WARM_ACCENT: Record<AgentRunState, string> = {
+    idle: "#ff8a3d",
+    running: "#ff8a3d",
+    "awaiting-input": "#ffb020",
+    completed: "#3ddc84",
+    error: "#ff5252",
+};
 
 /**
- * Resolve any CSS color expression (a `var(...)` chain, a token, or a literal)
- * to a concrete `#rrggbb`. A throwaway probe lets the browser resolve the full
- * `var()` fallback chain and any named color to a computed `rgb(...)`.
- */
-export function resolveCssColorToHex(cssExpr: string): string {
-    if (typeof document === "undefined" || !document.body) {
-        return FALLBACK_ACCENT;
-    }
-    const probe = document.createElement("span");
-    probe.style.cssText = "position:absolute;width:0;height:0;opacity:0;pointer-events:none;";
-    probe.style.color = cssExpr;
-    document.body.appendChild(probe);
-    const resolved = getComputedStyle(probe).color;
-    probe.remove();
-    const rgb = parseRgbFunc(resolved);
-    return rgb ? rgbToHex(rgb) : FALLBACK_ACCENT;
-}
-
-/**
- * The three shader stops for a run state: a monochromatic triad
- * `[darker, base, lighter]` around the state's resolved base color, so the
- * liquid shader keeps depth while reading as a single hue.
+ * The three shader stops for a run state: the fixed dark base plus the
+ * cool/warm accent pair, so the orb keeps one branded duotone look everywhere
+ * it's rendered instead of following the editor theme.
  */
 export function deriveOrbColors(state: AgentRunState): [string, string, string] {
-    const base = resolveCssColorToHex(stateColorVar(state));
-    return [shiftLightness(base, -0.15), base, shiftLightness(base, 0.12)];
-}
-
-/**
- * The shader-ready hex triad for a run state, re-resolved when the VS Code
- * theme changes. VS Code stamps theme metadata on `<body>`, while some webview
- * hosts update root styles; one shared observer watches both roots. `ShaderOrb`
- * lerps toward the new `colors` each frame, so the change crossfades.
- */
-const THEME_ATTRIBUTE_FILTER = ["class", "data-vscode-theme-kind", "data-vscode-theme-id", "style"];
-const themeChangeListeners = new Set<() => void>();
-let themeObserver: MutationObserver | undefined;
-
-export function subscribeToThemeChanges(listener: () => void): () => void {
-    if (typeof document === "undefined" || !document.body || typeof MutationObserver === "undefined") {
-        return () => undefined;
-    }
-    themeChangeListeners.add(listener);
-    if (!themeObserver) {
-        themeObserver = new MutationObserver(() => {
-            for (const listener of themeChangeListeners) {
-                listener();
-            }
-        });
-        const options = { attributes: true, attributeFilter: THEME_ATTRIBUTE_FILTER };
-        themeObserver.observe(document.documentElement, options);
-        themeObserver.observe(document.body, options);
-    }
-    return () => {
-        themeChangeListeners.delete(listener);
-        if (themeChangeListeners.size === 0) {
-            themeObserver?.disconnect();
-            themeObserver = undefined;
-        }
-    };
+    return [ORB_DARK_BASE, ORB_COOL_ACCENT, ORB_WARM_ACCENT[state]];
 }
 
 export function useOrbColors(state: AgentRunState): [string, string, string] {
-    const [colors, setColors] = useState<[string, string, string]>(() => deriveOrbColors(state));
-    const isFirstRun = useRef(true);
-
-    useEffect(() => {
-        const updateColors = () => setColors(deriveOrbColors(state));
-        // The lazy useState initializer already resolved the initial state's
-        // colors, so skip the redundant mount-time probe; only recompute here
-        // when `state` actually changes. Theme changes still recompute via the
-        // subscription below.
-        if (isFirstRun.current) {
-            isFirstRun.current = false;
-        } else {
-            updateColors();
-        }
-        return subscribeToThemeChanges(updateColors);
-    }, [state]);
-
-    return colors;
+    return useMemo(() => deriveOrbColors(state), [state]);
 }

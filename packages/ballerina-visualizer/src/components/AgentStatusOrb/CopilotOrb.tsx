@@ -20,9 +20,8 @@ import { useCallback, useState } from "react";
 import styled from "@emotion/styled";
 import { css, keyframes } from "@emotion/react";
 import { AgentRunState } from "@wso2/ballerina-core";
-import { Icon } from "@wso2/ui-toolkit";
 import { ShaderOrb } from "./ShaderOrb";
-import { FALLBACK_ORB_THEME, Gloss, IconOverlay, ORB_ENERGY, OrbTheme, Sphere, useOrbTheme } from "./shared";
+import { FALLBACK_ORB_THEME, GlassSphere, Gloss, IconOverlay, ORB_ENERGY, OrbTheme, useOrbTheme } from "./shared";
 
 const rotate = keyframes`
     from { transform: rotate(0deg); }
@@ -90,14 +89,6 @@ const Aura = styled.div<AuraProps>`
     }
 `;
 
-const BrandRing = styled.div`
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    border: 1.5px solid color-mix(in srgb, var(--vscode-button-foreground) 35%, transparent);
-    pointer-events: none;
-`;
-
 const SpinArc = styled.div`
     position: absolute;
     inset: -2px;
@@ -111,16 +102,64 @@ const SpinArc = styled.div`
     }
 `;
 
+// Geometry measured off the product's reference render, as fractions of the
+// orb's diameter: the eye rests as a 2:1 pill and blinks to a slightly
+// taller-than-wide dot, which is the other shape that render holds (not a
+// closed sliver).
+const EYE_WIDTH_RATIO = 0.098;
+const EYE_HEIGHT_RATIO = 0.194;
+const EYE_DOT_HEIGHT_RATIO = 0.111;
+const EYE_GAP_RATIO = 0.193;
+
+// Animates height rather than scaleY: `border-radius` resolves against the
+// unscaled box, so scaling squashes the corner radii into ellipses and the
+// blink lands on a rounded square instead of a dot.
+const eyeMorph = keyframes`
+    0%, 40% { height: var(--eye-open); }
+    50%, 85% { height: var(--eye-dot); }
+    95%, 100% { height: var(--eye-open); }
+`;
+
+const Eyes = styled.div<{ $size: number }>`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: ${(props: { $size: number }) => props.$size * EYE_GAP_RATIO}px;
+    pointer-events: none;
+`;
+
+/**
+ * A single companion "eye" — alternates between a tall pill and a round dot.
+ *
+ * Fixed white rather than a theme token: the sphere behind it is now always
+ * dark, so a theme-driven foreground could leave the eyes unreadable.
+ */
+const Eye = styled.div<{ $size: number }>`
+    --eye-open: ${(props: { $size: number }) => props.$size * EYE_HEIGHT_RATIO}px;
+    --eye-dot: ${(props: { $size: number }) => props.$size * EYE_DOT_HEIGHT_RATIO}px;
+    width: ${(props: { $size: number }) => props.$size * EYE_WIDTH_RATIO}px;
+    height: var(--eye-open);
+    flex: none;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow:
+        0 0 ${(props: { $size: number }) => props.$size * 0.07}px rgba(255, 255, 255, 0.75),
+        0 0 ${(props: { $size: number }) => props.$size * 0.14}px rgba(255, 180, 120, 0.45);
+    animation: ${eyeMorph} 5s ease-in-out infinite;
+    @media (prefers-reduced-motion: reduce) {
+        animation: none;
+    }
+`;
+
 export interface CopilotOrbProps {
     state: AgentRunState;
     colors: [string, string, string];
     size: number;
-    iconSize?: number;
     /** Pins a theme instead of following the shared preference. */
     theme?: OrbTheme;
 }
 
-export function CopilotOrb({ state, colors, size, iconSize = 26, theme }: CopilotOrbProps) {
+export function CopilotOrb({ state, colors, size, theme }: CopilotOrbProps) {
     const preferred = useOrbTheme();
     const [webglFailed, setWebglFailed] = useState(false);
     // Must be referentially stable: ShaderOrb re-creates (and loses) its GL context whenever this changes.
@@ -138,17 +177,15 @@ export function CopilotOrb({ state, colors, size, iconSize = 26, theme }: Copilo
             {resolved === "animated" ? (
                 <ShaderOrb colors={colors} energy={energy} size={size} onContextFailed={handleWebglFailed} />
             ) : (
-                <Sphere colors={colors} energy={energy} />
+                <GlassSphere colors={colors} />
             )}
             <Gloss />
-            {resolved === "animated" && <BrandRing />}
             {state === "running" && <SpinArc />}
             <IconOverlay>
-                <Icon
-                    name="bi-ai-chat"
-                    sx={{ width: iconSize, height: iconSize, display: "flex", alignItems: "center", justifyContent: "center" }}
-                    iconSx={{ fontSize: `${iconSize}px`, lineHeight: 1, color: "var(--vscode-button-foreground)", cursor: "inherit" }}
-                />
+                <Eyes $size={size}>
+                    <Eye $size={size} />
+                    <Eye $size={size} />
+                </Eyes>
             </IconOverlay>
         </Holder>
     );

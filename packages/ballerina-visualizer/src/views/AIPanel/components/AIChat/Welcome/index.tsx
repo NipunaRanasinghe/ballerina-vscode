@@ -133,7 +133,7 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ isOnboarding = false })
             <Content>
                 <WelcomeOrbHalo>
                     <WelcomeOrb role="img" aria-label={assistantName}>
-                        <CopilotOrb state="idle" colors={idleColors} size={WELCOME_ORB_SIZE} iconSize={24} />
+                        <CopilotOrb state="idle" colors={idleColors} size={WELCOME_ORB_SIZE} />
                     </WelcomeOrb>
                 </WelcomeOrbHalo>
                 <Typography

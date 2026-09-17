@@ -326,7 +326,7 @@ const LoginPanel: React.FC = () => {
             <HeaderContent>
                 <WelcomeOrbHalo>
                     <WelcomeOrb role="img" aria-label={assistantName}>
-                        <CopilotOrb state="idle" colors={idleColors} size={LOGIN_ORB_SIZE} iconSize={24} />
+                        <CopilotOrb state="idle" colors={idleColors} size={LOGIN_ORB_SIZE} />
                     </WelcomeOrb>
                 </WelcomeOrbHalo>
                 <Title>Welcome to {assistantName}</Title>

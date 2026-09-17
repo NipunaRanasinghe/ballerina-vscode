@@ -23,12 +23,10 @@ import {
     deriveOrbColors,
     hexToRgb,
     hslToRgb,
-    resolveCssColorToHex,
     rgbToHex,
     rgbToHsl,
     shiftLightness,
     stateColorVar,
-    subscribeToThemeChanges,
 } from "./orbTheme";
 
 describe("hexToRgb", () => {
@@ -107,110 +105,25 @@ describe("ambientBorderColor", () => {
     });
 });
 
-const documentDescriptor = Object.getOwnPropertyDescriptor(globalThis, "document");
-const computedStyleDescriptor = Object.getOwnPropertyDescriptor(globalThis, "getComputedStyle");
-const mutationObserverDescriptor = Object.getOwnPropertyDescriptor(globalThis, "MutationObserver");
-
-function restoreGlobalProperty(name: string, descriptor?: PropertyDescriptor): void {
-    if (descriptor) {
-        Object.defineProperty(globalThis, name, descriptor);
-    } else {
-        Reflect.deleteProperty(globalThis, name);
-    }
-}
-
-afterEach(() => {
-    restoreGlobalProperty("document", documentDescriptor);
-    restoreGlobalProperty("getComputedStyle", computedStyleDescriptor);
-    restoreGlobalProperty("MutationObserver", mutationObserverDescriptor);
-});
-
-describe("resolveCssColorToHex", () => {
-    function mockComputedColor(color: string): void {
-        const probe = { style: { cssText: "", color: "" }, remove: jest.fn() };
-        Object.defineProperty(globalThis, "document", {
-            configurable: true,
-            value: {
-                body: { appendChild: jest.fn() },
-                createElement: jest.fn(() => probe),
-            },
-        });
-        Object.defineProperty(globalThis, "getComputedStyle", {
-            configurable: true,
-            value: jest.fn(() => ({ color })),
-        });
-    }
-
-    it("parses legacy and modern computed RGB syntax", () => {
-        mockComputedColor("rgba(85, 103, 213, 0.5)");
-        expect(resolveCssColorToHex("var(--vscode-button-background)")).toBe("#5567d5");
-
-        mockComputedColor("rgb(85 103 213 / 0.5)");
-        expect(resolveCssColorToHex("var(--vscode-button-background)")).toBe("#5567d5");
-    });
-
-    it("returns the BI fallback accent when there is no document", () => {
-        restoreGlobalProperty("document");
-        expect(resolveCssColorToHex("var(--vscode-button-background)")).toBe("#5567D5");
-    });
-});
-
-describe("subscribeToThemeChanges", () => {
-    it("shares one observer across both theme metadata roots", () => {
-        const documentElement = {};
-        const body = {};
-        const observe = jest.fn();
-        const disconnect = jest.fn();
-        let callback: MutationCallback | undefined;
-        class FakeMutationObserver {
-            constructor(next: MutationCallback) {
-                callback = next;
-            }
-
-            observe = observe;
-            disconnect = disconnect;
-        }
-        Object.defineProperty(globalThis, "document", {
-            configurable: true,
-            value: { documentElement, body },
-        });
-        Object.defineProperty(globalThis, "MutationObserver", {
-            configurable: true,
-            value: FakeMutationObserver,
-        });
-
-        const firstListener = jest.fn();
-        const secondListener = jest.fn();
-        const unsubscribeFirst = subscribeToThemeChanges(firstListener);
-        const unsubscribeSecond = subscribeToThemeChanges(secondListener);
-
-        const options = {
-            attributes: true,
-            attributeFilter: ["class", "data-vscode-theme-kind", "data-vscode-theme-id", "style"],
-        };
-        expect(observe).toHaveBeenCalledTimes(2);
-        expect(observe).toHaveBeenNthCalledWith(1, documentElement, options);
-        expect(observe).toHaveBeenNthCalledWith(2, body, options);
-
-        callback?.([], {} as MutationObserver);
-        expect(firstListener).toHaveBeenCalledTimes(1);
-        expect(secondListener).toHaveBeenCalledTimes(1);
-
-        unsubscribeFirst();
-        callback?.([], {} as MutationObserver);
-        expect(firstListener).toHaveBeenCalledTimes(1);
-        expect(secondListener).toHaveBeenCalledTimes(2);
-
-        unsubscribeSecond();
-        expect(disconnect).toHaveBeenCalledTimes(1);
-    });
-});
-
 describe("deriveOrbColors", () => {
-    it("produces a [darker, base, lighter] triad around the resolved base", () => {
-        const [dark, base, light] = deriveOrbColors("idle"); // base falls back to #5567D5 (no DOM)
-        expect(base).toBe("#5567D5");
-        expect(rgbToHsl(hexToRgb(dark))[2]).toBeLessThan(rgbToHsl(hexToRgb(base))[2]);
-        expect(rgbToHsl(hexToRgb(light))[2]).toBeGreaterThan(rgbToHsl(hexToRgb(base))[2]);
+    it("keeps a fixed dark base and cool accent across every run state", () => {
+        const states = ["idle", "running", "awaiting-input", "completed", "error"] as const;
+        const triads = states.map((state) => deriveOrbColors(state));
+        for (const [base, cool] of triads) {
+            expect(base).toBe(triads[0][0]);
+            expect(cool).toBe(triads[0][1]);
+        }
+    });
+
+    it("shifts the warm accent per state so status stays distinguishable", () => {
+        const warmByState = new Map(
+            (["idle", "running", "awaiting-input", "completed", "error"] as const).map(
+                (state) => [state, deriveOrbColors(state)[2]]
+            )
+        );
+        // idle and running share the same warm accent; the transient states differ from it and each other.
+        expect(warmByState.get("idle")).toBe(warmByState.get("running"));
+        const distinctWarm = new Set(warmByState.values());
+        expect(distinctWarm.size).toBe(4); // idle/running + awaiting-input + completed + error
     });
 });
