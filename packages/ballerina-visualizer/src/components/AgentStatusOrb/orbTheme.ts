@@ -144,13 +144,22 @@ export function shiftLightness(hex: string, delta: number): string {
 /** The orb's fixed dark glass-ball base — independent of the VS Code theme. */
 const ORB_DARK_BASE = "#0a0e1a";
 
-/** The orb's cool accent — constant across every run state. */
-const ORB_COOL_ACCENT = "#4db8ff";
+/**
+ * The orb's cool accent — constant across every run state. Sampled from the
+ * reference render: averaging the bright, saturated shell pixels across several
+ * frames normalises to this hue.
+ */
+const ORB_COOL_ACCENT = "#65b7ff";
 
-/** The orb's warm accent per run state — the half of the duotone that still carries the status signal. */
+/**
+ * The orb's warm accent per run state — the half of the duotone that still
+ * carries the status signal. idle/running use the reference's own warm hue,
+ * a vermilion rather than a plain orange; the transient states keep their
+ * semantic colours.
+ */
 const ORB_WARM_ACCENT: Record<AgentRunState, string> = {
-    idle: "#ff8a3d",
-    running: "#ff8a3d",
+    idle: "#ff6739",
+    running: "#ff6739",
     "awaiting-input": "#ffb020",
     completed: "#3ddc84",
     error: "#ff5252",

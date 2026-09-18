@@ -109,37 +109,53 @@ void main() {
     // shaded ball.
     vec3 col = u_c0 * (0.5 + 0.3 * f);
 
-    // The film itself: one narrow band that ramps up close to the silhouette
-    // and drops away again at the very edge. Those radii trace the reference's
-    // measured profile (rises from ~0.80, peaks ~0.92, gone by 1.0), and the
-    // peak has to stay clear of the alpha feather below — a band that bright
-    // sitting in the feather washes out against a light editor background.
-    float shell = smoothstep(0.84, 0.93, r) * smoothstep(1.0, 0.94, r);
+    // Hue: a warm pair of streaks and a cool pair 90 degrees apart, each pair
+    // opposite itself, the whole set rotating clockwise at ~31 deg/sec (one turn
+    // every ~11s). u_time is deliberately raw here, so the hue turns at the same
+    // rate in every run state while u_energy drives only the interior flow.
+    float a = atan(uv.y, uv.x) + u_time * 0.55 - 1.5708;
+    float w = pow(abs(cos(a)), 6.0);
+    float c = pow(abs(sin(a)), 6.0);
+    // Deliberately NOT mixed toward white. The reference gets its brightness from
+    // intense saturated colour (saturation ~0.4 average, ~0.85 at its strongest),
+    // and only the small hot cores clip to white — which happens on its own below,
+    // where the multiplier drives the dominant channel past 1.0 while the others
+    // stay put. Whitening this blend instead flattens the whole shell to pastel
+    // grey, which is what made earlier versions read as a matte donut.
+    vec3 hue = u_c2 * w + u_c1 * c;
 
-    // Hue across the film: a warm pair of streaks and a cool pair 90 degrees
-    // apart, each pair opposite itself, the whole set rotating clockwise at
-    // ~33 deg/sec (one turn every ~11s). u_time is deliberately raw here, so
-    // the film turns at the same rate in every run state while u_energy keeps
-    // driving only the interior flow.
-    float a = atan(uv.y, uv.x) + u_time * 0.58 - 1.5708;
-    float w = pow(abs(cos(a)), 8.0);
-    float c = pow(abs(sin(a)), 8.0);
-    // Whitening is scaled by lobe strength, not applied flat, so the streak
-    // cores go pale while the gaps between them stay dark. Landing just under
-    // clipping is what keeps this reading as a tinted film: the reference peaks
-    // at ~(245,188,124) warm and ~(171,224,243) cool, never at blown-out white.
-    vec3 streak = u_c2 * w + u_c1 * c;
-    col += mix(streak, vec3(w + c), 0.38) * shell * 1.25;
+    // Where the light sits is fixed geometry, and it does NOT rotate with the
+    // hue. Sampling the reference frame by frame shows the bright features split
+    // by height, not by colour: in the upper half they peak at r 0.90-1.00, hard
+    // against the silhouette, and in the lower half at r 0.69-0.79, well inset.
+    // That pairing — a rim highlight up top, a caustic thrown onto the far wall
+    // below — is what reads as a lit hollow sphere. One ring of constant radius
+    // cannot, however it is coloured.
+    float up = clamp(0.5 + 0.5 * uv.y / max(r, 0.001), 0.0, 1.0);
 
-    // Broad soft sheen riding the upper-left of the film. Kept faint: it lifts
-    // the whole ring, and the gaps between the streaks have to stay dark or the
-    // film reads as a uniform bezel instead of light caught in glass.
-    float sheen = pow(max(0.0, 1.0 - length(uv - vec2(-0.33, 0.40)) / 1.15), 3.0);
-    col += vec3(1.0) * sheen * shell * 0.12;
+    // Rim highlight, hard against the silhouette, brightest toward the top. The
+    // multiplier is high enough that the core of a streak clips its dominant
+    // channel to white while the skirts stay vivid — the reference's bloom.
+    float rim = smoothstep(0.86, 0.93, r) * smoothstep(1.0, 0.95, r);
+    col += hue * rim * (0.06 + 0.94 * pow(up, 3.0)) * 3.0;
 
-    // The bubble's far wall, just inside the film, carrying the opposite pair.
-    float inner = smoothstep(0.74, 0.79, r) * smoothstep(0.90, 0.82, r);
-    col += (u_c2 * c + u_c1 * w) * inner * 0.35;
+    // Caustic on the far wall, inset, brightest toward the bottom. The gap
+    // between this and the rim above is deliberate: in the reference the two
+    // sit at 0.81 and 0.95 with a dark trough between them, and without that
+    // trough they merge into a single fat band and the depth cue is lost.
+    // Both weights fall off steeply with height on purpose. A gentle falloff
+    // leaves each feature smeared around most of the circumference, and the
+    // combined lit area then runs from r 0.6 to the edge — a broad airbrushed
+    // glow, where the reference keeps two separate crescents over short arcs.
+    float caustic = smoothstep(0.62, 0.71, r) * smoothstep(0.82, 0.74, r);
+    col += hue * caustic * (0.06 + 0.94 * pow(1.0 - up, 4.0)) * 2.6;
+
+    // The soap-film edge itself: a hairline that keeps the silhouette readable
+    // all the way round, including through the gaps between streaks.
+    // Faint and tinted rather than white: a white hairline all the way round is
+    // enough on its own to wash the shell's saturation out.
+    float film = smoothstep(0.955, 0.99, r) * smoothstep(1.0, 0.99, r);
+    col += mix(u_c1, vec3(1.0), 0.25) * film * 0.22;
 
     // Feather only wide enough to anti-alias the silhouette.
     float mask = smoothstep(1.0, 0.97, r);

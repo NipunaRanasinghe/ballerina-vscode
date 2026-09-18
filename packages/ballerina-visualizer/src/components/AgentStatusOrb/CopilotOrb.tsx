@@ -18,10 +18,10 @@
 
 import { useCallback, useState } from "react";
 import styled from "@emotion/styled";
-import { css, keyframes } from "@emotion/react";
+import { keyframes } from "@emotion/react";
 import { AgentRunState } from "@wso2/ballerina-core";
 import { ShaderOrb } from "./ShaderOrb";
-import { FALLBACK_ORB_THEME, GlassSphere, Gloss, IconOverlay, ORB_ENERGY, OrbTheme, useOrbTheme } from "./shared";
+import { FALLBACK_ORB_THEME, GlassSphere, IconOverlay, ORB_ENERGY, OrbTheme, useOrbTheme } from "./shared";
 
 const rotate = keyframes`
     from { transform: rotate(0deg); }
@@ -54,38 +54,6 @@ const Halo = styled.div<ColorsProps>`
     @media (prefers-reduced-motion: reduce) {
         animation: none;
         opacity: 0.4;
-    }
-`;
-
-interface AuraProps extends ColorsProps {
-    state: AgentRunState;
-}
-
-const Aura = styled.div<AuraProps>`
-    position: absolute;
-    inset: -6px;
-    border-radius: 50%;
-    background: conic-gradient(
-        from 0deg,
-        ${(props: AuraProps) => `${props.colors[0]}, ${props.colors[1]}, ${props.colors[2]}, ${props.colors[0]}`}
-    );
-    filter: blur(8px);
-    opacity: ${(props: AuraProps) => (props.state === "idle" ? 0.45 : props.state === "running" ? 1 : 0.85)};
-    // The same saturated glow that reads as a soft shadow on a light ground turns into a hot ring
-    // against near-black.
-    body.vscode-dark &,
-    body.vscode-high-contrast & {
-        opacity: ${(props: AuraProps) => (props.state === "idle" ? 0.26 : props.state === "running" ? 0.7 : 0.55)};
-        filter: blur(11px);
-    }
-    ${(props: AuraProps) =>
-        props.state === "running"
-            ? css`animation: ${rotate} 2.8s linear infinite;`
-            : props.state === "idle"
-                ? css`animation: ${rotate} 14s linear infinite;`
-                : css`animation: ${rotate} 9s linear infinite;`}
-    @media (prefers-reduced-motion: reduce) {
-        animation: none;
     }
 `;
 
@@ -142,9 +110,11 @@ const Eye = styled.div<{ $size: number }>`
     flex: none;
     border-radius: 999px;
     background: #ffffff;
+    // Tight on purpose: a wider halo spills across the middle of the sphere and
+    // lifts it off the near-black the reference keeps between the eyes.
     box-shadow:
-        0 0 ${(props: { $size: number }) => props.$size * 0.07}px rgba(255, 255, 255, 0.75),
-        0 0 ${(props: { $size: number }) => props.$size * 0.14}px rgba(255, 180, 120, 0.45);
+        0 0 ${(props: { $size: number }) => props.$size * 0.04}px rgba(255, 255, 255, 0.6),
+        0 0 ${(props: { $size: number }) => props.$size * 0.08}px rgba(255, 180, 120, 0.3);
     animation: ${eyeMorph} 5s ease-in-out infinite;
     @media (prefers-reduced-motion: reduce) {
         animation: none;
@@ -173,13 +143,11 @@ export function CopilotOrb({ state, colors, size, theme }: CopilotOrbProps) {
     return (
         <Holder $size={size}>
             {(state === "running" || state === "awaiting-input") && <Halo colors={colors} />}
-            <Aura colors={colors} state={state} />
             {resolved === "animated" ? (
                 <ShaderOrb colors={colors} energy={energy} size={size} onContextFailed={handleWebglFailed} />
             ) : (
                 <GlassSphere colors={colors} />
             )}
-            <Gloss />
             {state === "running" && <SpinArc />}
             <IconOverlay>
                 <Eyes $size={size}>
