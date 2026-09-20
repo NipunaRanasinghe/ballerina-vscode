@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import styled from "@emotion/styled";
 import { keyframes } from "@emotion/react";
 import { AgentRunState } from "@wso2/ballerina-core";
@@ -78,24 +78,67 @@ const EYE_HEIGHT_RATIO = 0.194;
 const EYE_SHUT_HEIGHT_RATIO = 0.034;
 const EYE_GAP_RATIO = 0.193;
 
-// Blink timing, measured over the reference's 3.5s at 60fps: four blinks, one
-// every 0.85s, each lasting 0.2s split evenly into closing, held shut, and
-// opening. The reference holds no second resting state — it is open except for
-// those blinks — and it interpolates linearly, its mid-blink frames landing on
-// the midpoint height, so this must not ease.
-const BLINK_PERIOD_S = 0.85;
-const BLINK_DOWN_PCT = 76;
-const BLINK_SHUT_PCT = 84;
-const BLINK_UP_PCT = 92;
+// One blink lasts 0.2s, measured off the reference at 60fps, split evenly into
+// closing, held shut, and opening. The reference interpolates linearly — its
+// mid-blink frames land on the midpoint height — so this must not ease.
+const BLINK_DURATION_MS = 200;
+
+// The gap between blinks is drawn fresh each time rather than fixed. The
+// reference's own gaps vary (0.78 / 0.89 / 0.85s measured), and a fixed CSS loop
+// reads as mechanical next to that. The range averages 5s.
+const BLINK_MIN_MS = 4000;
+const BLINK_MAX_MS = 6000;
 
 // Animates height rather than scaleY: `border-radius` resolves against the
 // unscaled box, so scaling squashes the corner radii into ellipses and the
 // blink lands on a rounded square instead of a flat slit.
-const eyeMorph = keyframes`
-    0%, ${BLINK_DOWN_PCT}% { height: var(--eye-open); }
-    ${BLINK_SHUT_PCT}%, ${BLINK_UP_PCT}% { height: var(--eye-shut); }
+const eyeBlink = keyframes`
+    0% { height: var(--eye-open); }
+    33%, 67% { height: var(--eye-shut); }
     100% { height: var(--eye-open); }
 `;
+
+/**
+ * True for the 200ms of each blink, with a fresh random gap in between.
+ *
+ * The eye rests open: there is no second resting state to animate between, so
+ * this drives a one-shot animation rather than a loop.
+ */
+function useBlink(): boolean {
+    const [blinking, setBlinking] = useState(false);
+    useEffect(() => {
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const stop = () => {
+            clearTimeout(timer);
+            timer = undefined;
+            setBlinking(false);
+        };
+        const schedule = () => {
+            const gap = BLINK_MIN_MS + Math.random() * (BLINK_MAX_MS - BLINK_MIN_MS);
+            timer = setTimeout(() => {
+                setBlinking(true);
+                timer = setTimeout(() => {
+                    setBlinking(false);
+                    schedule();
+                }, BLINK_DURATION_MS);
+            }, gap);
+        };
+        const applyMotionPreference = () => {
+            stop();
+            if (!reducedMotion.matches) {
+                schedule();
+            }
+        };
+        applyMotionPreference();
+        reducedMotion.addEventListener("change", applyMotionPreference);
+        return () => {
+            reducedMotion.removeEventListener("change", applyMotionPreference);
+            stop();
+        };
+    }, []);
+    return blinking;
+}
 
 const Eyes = styled.div<{ $size: number }>`
     display: flex;
@@ -111,7 +154,7 @@ const Eyes = styled.div<{ $size: number }>`
  * Fixed white rather than a theme token: the sphere behind it is now always
  * dark, so a theme-driven foreground could leave the eyes unreadable.
  */
-const Eye = styled.div<{ $size: number }>`
+const Eye = styled.div<{ $size: number; $blinking: boolean }>`
     --eye-open: ${(props: { $size: number }) => props.$size * EYE_HEIGHT_RATIO}px;
     --eye-shut: ${(props: { $size: number }) => props.$size * EYE_SHUT_HEIGHT_RATIO}px;
     width: ${(props: { $size: number }) => props.$size * EYE_WIDTH_RATIO}px;
@@ -124,7 +167,11 @@ const Eye = styled.div<{ $size: number }>`
     box-shadow:
         0 0 ${(props: { $size: number }) => props.$size * 0.04}px rgba(255, 255, 255, 0.6),
         0 0 ${(props: { $size: number }) => props.$size * 0.08}px rgba(255, 180, 120, 0.3);
-    animation: ${eyeMorph} ${BLINK_PERIOD_S}s linear infinite;
+    // Dropping back to \`none\` between blinks is what lets the next one restart
+    // the animation; a looping keyframe could not take a random gap.
+    animation-name: ${(props: { $blinking: boolean }) => (props.$blinking ? eyeBlink : "none")};
+    animation-duration: ${BLINK_DURATION_MS}ms;
+    animation-timing-function: linear;
     @media (prefers-reduced-motion: reduce) {
         animation: none;
     }
@@ -140,6 +187,7 @@ export interface CopilotOrbProps {
 
 export function CopilotOrb({ state, colors, size, theme }: CopilotOrbProps) {
     const preferred = useOrbTheme();
+    const blinking = useBlink();
     const [webglFailed, setWebglFailed] = useState(false);
     // Must be referentially stable: ShaderOrb re-creates (and loses) its GL context whenever this changes.
     const handleWebglFailed = useCallback(() => setWebglFailed(true), []);
@@ -160,8 +208,8 @@ export function CopilotOrb({ state, colors, size, theme }: CopilotOrbProps) {
             {state === "running" && <SpinArc />}
             <IconOverlay>
                 <Eyes $size={size}>
-                    <Eye $size={size} />
-                    <Eye $size={size} />
+                    <Eye $size={size} $blinking={blinking} />
+                    <Eye $size={size} $blinking={blinking} />
                 </Eyes>
             </IconOverlay>
         </Holder>
