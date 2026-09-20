@@ -70,22 +70,31 @@ const SpinArc = styled.div`
     }
 `;
 
-// Geometry measured off the product's reference render, as fractions of the
-// orb's diameter: the eye rests as a 2:1 pill and blinks to a slightly
-// taller-than-wide dot, which is the other shape that render holds (not a
-// closed sliver).
+// Geometry measured off the product's reference recording, as fractions of the
+// orb's diameter. The eye rests as a 2:1 pill and shuts to a flat slit; only its
+// height ever changes, the width holding constant through the blink.
 const EYE_WIDTH_RATIO = 0.098;
 const EYE_HEIGHT_RATIO = 0.194;
-const EYE_DOT_HEIGHT_RATIO = 0.111;
+const EYE_SHUT_HEIGHT_RATIO = 0.034;
 const EYE_GAP_RATIO = 0.193;
+
+// Blink timing, measured over the reference's 3.5s at 60fps: four blinks, one
+// every 0.85s, each lasting 0.2s split evenly into closing, held shut, and
+// opening. The reference holds no second resting state — it is open except for
+// those blinks — and it interpolates linearly, its mid-blink frames landing on
+// the midpoint height, so this must not ease.
+const BLINK_PERIOD_S = 0.85;
+const BLINK_DOWN_PCT = 76;
+const BLINK_SHUT_PCT = 84;
+const BLINK_UP_PCT = 92;
 
 // Animates height rather than scaleY: `border-radius` resolves against the
 // unscaled box, so scaling squashes the corner radii into ellipses and the
-// blink lands on a rounded square instead of a dot.
+// blink lands on a rounded square instead of a flat slit.
 const eyeMorph = keyframes`
-    0%, 40% { height: var(--eye-open); }
-    50%, 85% { height: var(--eye-dot); }
-    95%, 100% { height: var(--eye-open); }
+    0%, ${BLINK_DOWN_PCT}% { height: var(--eye-open); }
+    ${BLINK_SHUT_PCT}%, ${BLINK_UP_PCT}% { height: var(--eye-shut); }
+    100% { height: var(--eye-open); }
 `;
 
 const Eyes = styled.div<{ $size: number }>`
@@ -104,7 +113,7 @@ const Eyes = styled.div<{ $size: number }>`
  */
 const Eye = styled.div<{ $size: number }>`
     --eye-open: ${(props: { $size: number }) => props.$size * EYE_HEIGHT_RATIO}px;
-    --eye-dot: ${(props: { $size: number }) => props.$size * EYE_DOT_HEIGHT_RATIO}px;
+    --eye-shut: ${(props: { $size: number }) => props.$size * EYE_SHUT_HEIGHT_RATIO}px;
     width: ${(props: { $size: number }) => props.$size * EYE_WIDTH_RATIO}px;
     height: var(--eye-open);
     flex: none;
@@ -115,7 +124,7 @@ const Eye = styled.div<{ $size: number }>`
     box-shadow:
         0 0 ${(props: { $size: number }) => props.$size * 0.04}px rgba(255, 255, 255, 0.6),
         0 0 ${(props: { $size: number }) => props.$size * 0.08}px rgba(255, 180, 120, 0.3);
-    animation: ${eyeMorph} 5s ease-in-out infinite;
+    animation: ${eyeMorph} ${BLINK_PERIOD_S}s linear infinite;
     @media (prefers-reduced-motion: reduce) {
         animation: none;
     }
