@@ -123,9 +123,7 @@ const float AMBIENT_I = 0.2200;
 const float FILM_LO = 0.9549;
 const float FILM_HI = 0.99;
 const float FILM_I = 0.0400;
-const float BLOOM_I = 0.2494;
 const float BLOOM_WIDTH = 0.0619;
-const float FEATHER = 0.02;
 const float PI = 3.14159265;
 
 /** Angular falloff of one arc about its bearing. */
@@ -203,15 +201,14 @@ void main() {
     float film = smoothstep(FILM_LO, FILM_HI, r) * (1.0 - smoothstep(FILM_HI, 1.0, r));
     col += mix(u_c1, vec3(1.0), 0.25) * film * FILM_I;
 
-    // Outside the silhouette only the broad halo bleeds into the margin.
-    float glow = exp(-max(r - 1.0, 0.0) / BLOOM_WIDTH) * step(1.0, r);
-    vec3 glowTint = warmC * lobe(az, phi, LOBE_AZIMUTH)
-                  + coolC * lobe(az, phi + LIGHT_SEP, LOBE_AZIMUTH)
-                  + warmC * FAR_WALL * lobe(az, phi + PI, LOBE_AZIMUTH)
-                  + coolC * FAR_WALL * lobe(az, phi + LIGHT_SEP + PI, LOBE_AZIMUTH);
-    col += glowTint * (glow * BLOOM_I);
-
-    float mask = max(1.0 - smoothstep(1.0 - FEATHER, 1.0, r), glow);
+    // Beyond the silhouette the body has already gone (BASE_FRESNEL takes it to
+    // zero at grazing incidence), so what remains out there is the ambient rim
+    // and the arcs, fading outward as the glow. One falloff drives both the
+    // colour and the alpha, which is what keeps the edge continuous: feathering
+    // the alpha separately left a hairline of transparent pixels just inside
+    // r = 1, where the feather had reached zero but the glow had not yet
+    // started, and it read as a ring drawn around the orb.
+    float mask = exp(-max(r - 1.0, 0.0) / BLOOM_WIDTH);
     gl_FragColor = vec4(col * mask, mask);
 }
 `;
