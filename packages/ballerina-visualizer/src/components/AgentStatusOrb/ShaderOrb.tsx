@@ -45,6 +45,13 @@ function hexToRgb(hex: string): Rgb {
     return [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255];
 }
 
+/**
+ * How much wider the canvas is than the orb itself. The shader draws the sphere
+ * at SPHERE_R of the canvas and spends the remaining margin on the glow around
+ * it; the two constants are reciprocal and must stay in step.
+ */
+const ORB_CANVAS_SCALE = 1.22;
+
 const VERTEX_SHADER = `
 attribute vec2 a_pos;
 varying vec2 v_uv;
@@ -89,8 +96,56 @@ float fbm(vec2 p) {
     return v;
 }
 
+// The light rig, measured off the product's reference render rather than tuned
+// by eye. Two lights 60 degrees apart orbit clockwise at 0.678 rad/s (a 9.3s
+// revolution); each reflects off both walls of the shell, so there are four
+// arcs. Arcs peak at r = 0.85 and each is a broad tinted halo plus a sharp
+// core: one gaussian cannot be both bright enough to clip at its centre and
+// wide enough in the shoulders, which is what left earlier versions looking
+// washed out rather than lit.
+const float SPHERE_R = 0.8197;
+const float SPIN = 0.678;
+const float LIGHT_SEP = 1.0472;
+const float LIGHT_Z = -0.4304;
+const float LOBE_RADIAL = 0.2502;
+const float LOBE_AZIMUTH = 0.2339;
+const float CORE_RADIAL = 0.0060;
+const float CORE_AZIMUTH = 0.2189;
+const float CORE_I = 1.1092;
+const float WARM_I = 1.1500;
+const float COOL_I = 0.6862;
+const float FAR_WALL = 0.6997;
+const float FRESNEL_EXP = 4.0000;
+const float BASE_FLAT = 0.8000;
+const float BASE_NOISE = 0.3766;
+const float BASE_FRESNEL = 1.0000;
+const float AMBIENT_I = 0.2200;
+const float FILM_LO = 0.9549;
+const float FILM_HI = 0.99;
+const float FILM_I = 0.0400;
+const float BLOOM_I = 0.2494;
+const float BLOOM_WIDTH = 0.0619;
+const float FEATHER = 0.02;
+const float PI = 3.14159265;
+
+/** Angular falloff of one arc about its bearing. */
+float lobe(float az, float bearing, float width) {
+    float d = abs(mod(az - bearing + PI, 2.0 * PI) - PI);
+    return exp(-d * d / width);
+}
+
+/** One arc: the broad tinted halo plus the sharp core that clips to white. */
+float arc(float az, float bearing, float halo, float core) {
+    return halo * lobe(az, bearing, LOBE_AZIMUTH)
+         + core * lobe(az, bearing, CORE_AZIMUTH) * CORE_I;
+}
+
 void main() {
-    vec2 uv = v_uv;
+    // The sphere occupies SPHERE_R of the canvas; the remaining margin is where
+    // the glow outside the silhouette is drawn. Measured off the reference, that
+    // glow still carries ~13% of peak brightness a whole radius-tenth out, so a
+    // canvas cropped to the silhouette cannot show it at all.
+    vec2 uv = v_uv / SPHERE_R;
     float r = length(uv);
     float t = u_time * (0.18 + 0.55 * u_energy);
 
@@ -102,63 +157,61 @@ void main() {
     float warpStrength = 1.4 + 1.2 * u_energy;
     float f = fbm(uv * 2.2 + warpStrength * q + vec2(t * 0.3, -t * 0.2));
 
-    // What you see through the bubble: a near-black core with just enough flow
-    // that it isn't dead still. Sampling the reference render's radial profile
-    // puts the core around 4% luminance all the way out to r 0.72, so nearly
-    // everything visible lives in the thin film below — a hollow shell, not a
-    // shaded ball.
-    vec3 col = u_c0 * (0.5 + 0.3 * f);
+    // Shade this as a hollow sphere rather than painting rings onto a disc.
+    // rc clamps to the silhouette so the margin keeps the edge's values.
+    float rc = min(r, 1.0);
+    float z = sqrt(max(0.0, 1.0 - rc * rc));
 
-    // Hue: a warm pair of streaks and a cool pair 90 degrees apart, each pair
-    // opposite itself, the whole set rotating clockwise at ~31 deg/sec (one turn
-    // every ~11s). u_time is deliberately raw here, so the hue turns at the same
-    // rate in every run state while u_energy drives only the interior flow.
-    float a = atan(uv.y, uv.x) + u_time * 0.55 - 1.5708;
-    float w = pow(abs(cos(a)), 6.0);
-    float c = pow(abs(sin(a)), 6.0);
-    // Deliberately NOT mixed toward white. The reference gets its brightness from
-    // intense saturated colour (saturation ~0.4 average, ~0.85 at its strongest),
-    // and only the small hot cores clip to white — which happens on its own below,
-    // where the multiplier drives the dominant channel past 1.0 while the others
-    // stay put. Whitening this blend instead flattens the whole shell to pastel
-    // grey, which is what made earlier versions read as a matte donut.
-    vec3 hue = u_c2 * w + u_c1 * c;
+    // A light reflects off the surface where the reflection vector matches its
+    // direction. For a sphere seen head-on that reduces to Rz = 1 - 2r^2, so a
+    // light's elevation alone fixes the radius its highlight lands at. The
+    // reference's arcs peak at r = 0.85, hence LIGHT_Z = 1 - 2*0.85^2.
+    float Rz = 1.0 - 2.0 * rc * rc;
+    float fres = pow(1.0 - z, FRESNEL_EXP);
 
-    // Where the light sits is fixed geometry, and it does NOT rotate with the
-    // hue. Sampling the reference frame by frame shows the bright features split
-    // by height, not by colour: in the upper half they peak at r 0.90-1.00, hard
-    // against the silhouette, and in the lower half at r 0.69-0.79, well inset.
-    // That pairing — a rim highlight up top, a caustic thrown onto the far wall
-    // below — is what reads as a lit hollow sphere. One ring of constant radius
-    // cannot, however it is coloured.
-    float up = clamp(0.5 + 0.5 * uv.y / max(r, 0.001), 0.0, 1.0);
+    // What shows through the film: the dark backdrop behind the bubble.
+    vec3 col = u_c0 * (BASE_FLAT + BASE_NOISE * f) * (1.0 - BASE_FRESNEL * fres);
 
-    // Rim highlight, hard against the silhouette, brightest toward the top. The
-    // multiplier is high enough that the core of a streak clips its dominant
-    // channel to white while the skirts stay vivid — the reference's bloom.
-    float rim = smoothstep(0.86, 0.93, r) * smoothstep(1.0, 0.95, r);
-    col += hue * rim * (0.06 + 0.94 * pow(up, 3.0)) * 3.0;
+    // Ambient reflected off the film. Fresnel makes the shell more mirror-like
+    // at grazing angles, so this lifts the whole rim including the gaps between
+    // the arcs — in the reference those gaps are brighter than the centre, which
+    // a body that only darkens outward cannot reproduce.
+    col += u_c1 * (AMBIENT_I * fres);
 
-    // Caustic on the far wall, inset, brightest toward the bottom. The gap
-    // between this and the rim above is deliberate: in the reference the two
-    // sit at 0.81 and 0.95 with a dark trough between them, and without that
-    // trough they merge into a single fat band and the depth cue is lost.
-    // Both weights fall off steeply with height on purpose. A gentle falloff
-    // leaves each feature smeared around most of the circumference, and the
-    // combined lit area then runs from r 0.6 to the edge — a broad airbrushed
-    // glow, where the reference keeps two separate crescents over short arcs.
-    float caustic = smoothstep(0.62, 0.71, r) * smoothstep(0.82, 0.74, r);
-    col += hue * caustic * (0.06 + 0.94 * pow(1.0 - up, 4.0)) * 2.6;
+    // Two lights LIGHT_SEP apart orbit the view axis. Each reflects off BOTH
+    // walls of the shell: off the near wall at its own bearing, and off the far
+    // wall half a turn away, because reflecting off a back-facing normal mirrors
+    // the result across the centre. So two lights make four arcs — warm opposite
+    // warm, cool opposite cool — which is the pattern the reference shows, its
+    // warmth reversing sign four times around the rim.
+    float phi = -u_time * SPIN;
+    float dE = Rz - LIGHT_Z;
+    float halo = exp(-dE * dE / LOBE_RADIAL);
+    float core = exp(-dE * dE / CORE_RADIAL);
+    float az = atan(uv.y, uv.x);
 
-    // The soap-film edge itself: a hairline that keeps the silhouette readable
-    // all the way round, including through the gaps between streaks.
-    // Faint and tinted rather than white: a white hairline all the way round is
-    // enough on its own to wash the shell's saturation out.
-    float film = smoothstep(0.955, 0.99, r) * smoothstep(1.0, 0.99, r);
-    col += mix(u_c1, vec3(1.0), 0.25) * film * 0.22;
+    vec3 warmC = u_c2 * WARM_I;
+    vec3 coolC = u_c1 * COOL_I;
+    vec3 arcs = warmC * arc(az, phi, halo, core)
+              + coolC * arc(az, phi + LIGHT_SEP, halo, core)
+              + warmC * FAR_WALL * arc(az, phi + PI, halo, core)
+              + coolC * FAR_WALL * arc(az, phi + LIGHT_SEP + PI, halo, core);
+    col += arcs;
 
-    // Feather only wide enough to anti-alias the silhouette.
-    float mask = smoothstep(1.0, 0.97, r);
+    // The soap-film edge: a hairline keeping the silhouette readable through the
+    // gaps between the arcs.
+    float film = smoothstep(FILM_LO, FILM_HI, r) * (1.0 - smoothstep(FILM_HI, 1.0, r));
+    col += mix(u_c1, vec3(1.0), 0.25) * film * FILM_I;
+
+    // Outside the silhouette only the broad halo bleeds into the margin.
+    float glow = exp(-max(r - 1.0, 0.0) / BLOOM_WIDTH) * step(1.0, r);
+    vec3 glowTint = warmC * lobe(az, phi, LOBE_AZIMUTH)
+                  + coolC * lobe(az, phi + LIGHT_SEP, LOBE_AZIMUTH)
+                  + warmC * FAR_WALL * lobe(az, phi + PI, LOBE_AZIMUTH)
+                  + coolC * FAR_WALL * lobe(az, phi + LIGHT_SEP + PI, LOBE_AZIMUTH);
+    col += glowTint * (glow * BLOOM_I);
+
+    float mask = max(1.0 - smoothstep(1.0 - FEATHER, 1.0, r), glow);
     gl_FragColor = vec4(col * mask, mask);
 }
 `;
@@ -237,8 +290,8 @@ export function ShaderOrb({ colors, energy, size, onContextFailed }: ShaderOrbPr
         }
 
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        canvas.width = size * dpr;
-        canvas.height = size * dpr;
+        canvas.width = size * ORB_CANVAS_SCALE * dpr;
+        canvas.height = size * ORB_CANVAS_SCALE * dpr;
         gl.viewport(0, 0, canvas.width, canvas.height);
 
         gl.useProgram(program);
@@ -333,10 +386,14 @@ export function ShaderOrb({ colors, energy, size, onContextFailed }: ShaderOrbPr
             ref={canvasRef}
             style={{
                 position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                borderRadius: "50%",
+                // Oversized by ORB_CANVAS_SCALE so the glow outside the
+                // silhouette has somewhere to land. The sphere still measures
+                // exactly `size` across, so callers and the eye geometry are
+                // unaffected. No border-radius: the shader's own alpha draws the
+                // silhouette, and clipping to a circle would cut the glow off.
+                inset: `${(1 - ORB_CANVAS_SCALE) * 50}%`,
+                width: `${ORB_CANVAS_SCALE * 100}%`,
+                height: `${ORB_CANVAS_SCALE * 100}%`,
                 pointerEvents: "none",
             }}
         />
