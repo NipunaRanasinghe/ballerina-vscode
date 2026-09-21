@@ -539,6 +539,78 @@ export function subscribeMiniChatOpen(listener: (prompt: MiniChatPrompt) => void
 }
 
 // ---------------------------------------------------------------------------
+// Proactive suggestions.
+//
+// A low-code view notices work the Copilot could do and offers it; the orb is
+// what shows the offer. Same sibling problem as the handoff above, so the same
+// small fan-out store. Only one offer is live at a time: two companions talking
+// over each other is worse than either staying quiet.
+// ---------------------------------------------------------------------------
+
+/** Names the trigger, so each one is dismissed on its own. */
+export type SuggestionKind = "data-mapper-unmapped";
+
+export interface CopilotSuggestion {
+    kind: SuggestionKind;
+    /** One line, shown beside the orb. */
+    text: string;
+    /** Label for the button that takes the offer up. */
+    action: string;
+    /** Handed to the mini chat when accepted. */
+    prompt: MiniChatPrompt;
+}
+
+const suggestionListeners = new Set<(suggestion: CopilotSuggestion | null) => void>();
+let currentSuggestion: CopilotSuggestion | null = null;
+
+/**
+ * Kinds the user has waved away. Being interrupted is only tolerable when
+ * refusing sticks, so a dismissed kind stays quiet for the rest of the session.
+ */
+const dismissedSuggestions = new Set<SuggestionKind>();
+
+/** Returns false when the offer was refused before, or another is already up. */
+export function offerSuggestion(suggestion: CopilotSuggestion): boolean {
+    if (currentSuggestion || dismissedSuggestions.has(suggestion.kind)) {
+        return false;
+    }
+    currentSuggestion = suggestion;
+    suggestionListeners.forEach((listener) => listener(suggestion));
+    return true;
+}
+
+/**
+ * Withdraws the live offer. `dismissed` marks it as refused rather than merely
+ * over, which is what stops the same trigger raising it again.
+ */
+export function clearSuggestion(kind?: SuggestionKind, dismissed = false): void {
+    if (!currentSuggestion || (kind && currentSuggestion.kind !== kind)) {
+        return;
+    }
+    if (dismissed) {
+        dismissedSuggestions.add(currentSuggestion.kind);
+    }
+    currentSuggestion = null;
+    suggestionListeners.forEach((listener) => listener(null));
+}
+
+/** Clears both the live offer and the record of what was refused. */
+export function __resetSuggestionStoreForTests(): void {
+    currentSuggestion = null;
+    dismissedSuggestions.clear();
+    suggestionListeners.clear();
+}
+
+/** Replays the live offer on subscribe, since the orb can mount after it is made. */
+export function subscribeSuggestion(listener: (suggestion: CopilotSuggestion | null) => void): () => void {
+    suggestionListeners.add(listener);
+    listener(currentSuggestion);
+    return () => {
+        suggestionListeners.delete(listener);
+    };
+}
+
+// ---------------------------------------------------------------------------
 // Copilot chat stream (mini chat).
 //
 // The extension mirrors onChatNotify events to the visualizer webview on the

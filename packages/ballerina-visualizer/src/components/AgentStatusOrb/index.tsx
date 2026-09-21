@@ -40,6 +40,9 @@ import {
     subscribeMiniChatOpen,
     syncOrbThemeFromSetting,
     useAmbientCopilotPresence,
+    clearSuggestion,
+    subscribeSuggestion,
+    type CopilotSuggestion,
 } from "./shared";
 import { createMiniChatPrompt, MiniChatPrompt } from "./promptHandoff";
 import { useAssistantName } from "../../hooks/useProductMode";
@@ -241,6 +244,58 @@ const InviteInput = styled.input`
     }
 `;
 
+/**
+ * The proactive offer, shown in place of the invite's input. It shares the pill
+ * so the orb never grows a second box: one surface beside the orb, whether it is
+ * waiting to be typed into or has something to say.
+ */
+const SuggestionRow = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 280px;
+`;
+
+const SuggestionText = styled.span`
+    flex: 1;
+    padding: 5px 2px 5px 6px;
+    font-size: 12px;
+    font-family: var(--vscode-font-family);
+    color: var(--vscode-foreground);
+    line-height: 1.35;
+`;
+
+const SuggestionAccept = styled.button`
+    flex: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-family: var(--vscode-font-family);
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    &:hover {
+        background: var(--vscode-button-hoverBackground);
+    }
+`;
+
+const SuggestionDismiss = styled.button`
+    flex: none;
+    display: flex;
+    align-items: center;
+    background: transparent;
+    border: none;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    &:hover {
+        color: var(--vscode-foreground);
+        background: var(--vscode-toolbar-hoverBackground);
+    }
+`;
+
 interface OrbStyleProps {
     state: AgentRunState;
 }
@@ -375,6 +430,10 @@ export function AgentStatusOrb() {
         });
     }, [rpcClient]);
 
+    /** The live proactive offer, or null when nothing is being suggested. */
+    const [suggestion, setSuggestion] = useState<CopilotSuggestion | null>(null);
+    useEffect(() => subscribeSuggestion(setSuggestion), []);
+
     useEffect(() => subscribeOrbSuppressed(setOrbSuppressed), []);
 
     // `ballerina.copilot.showOrb` is off: the editor title bar's Copilot button stands in.
@@ -423,6 +482,8 @@ export function AgentStatusOrb() {
             miniPromptRef.current = undefined;
             setHovered(false);
             setOrbFocused(false);
+            // Withdrawn rather than dismissed: the user never saw it to refuse it.
+            clearSuggestion();
         }
     }, [orbHidden]);
 
@@ -442,12 +503,19 @@ export function AgentStatusOrb() {
     // isn't committed until the snap timer fires, so showing it earlier would open the mini
     // chat at the stale anchor.
     const inviteHosted = !orbHidden && status?.state === "idle";
+    // The offer stands down for anything the user is actively doing: mid-drag,
+    // mid-snap, and while the mini chat is open (it would be talking over it).
+    // The suggestion rides in the same pill as the invite rather than a second
+    // box beside it. Gated on `inviteHosted`, so nothing is offered while the
+    // agent is mid-run — the pill is the idle surface.
+    const visibleSuggestion = inviteHosted && !dragging && !snapping && !miniOpen ? suggestion : null;
     const inviteVisible =
         inviteHosted &&
         !dragging &&
         !snapping &&
         !miniOpen &&
-        (hovered || orbFocused || inviteFocused || inviteText.length > 0);
+        // A suggestion shows itself; the rest of the time the pill waits for the pointer.
+        (!!visibleSuggestion || hovered || orbFocused || inviteFocused || inviteText.length > 0);
 
     // A draft left behind when the orb hides, a run starts or the mini chat takes over would
     // hold the box open the moment it came back with the pointer nowhere near it. In the first
@@ -487,6 +555,16 @@ export function AgentStatusOrb() {
         setInviteText("");
         input.blur();
         openMiniChat(text ? createMiniChatPrompt(text, { autoSubmit: true }) : undefined);
+    };
+
+    // Taking up an offer is the same handoff as typing into the invite: the
+    // prompt goes to the mini chat, not the full panel, and is left unsent so
+    // the user can edit or abandon it.
+    const acceptSuggestion = (offer: CopilotSuggestion) => {
+        miniPromptRef.current = offer.prompt;
+        clearSuggestion(offer.kind);
+        setMiniChatKey((key) => key + 1);
+        setMiniOpen(true);
     };
 
     const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -641,6 +719,26 @@ export function AgentStatusOrb() {
                     <InviteShell visible={inviteVisible} data-testid="invite-shell">
                             <AmbientFrame $state={state}>
                             <InviteBox>
+                            {visibleSuggestion ? (
+                                <SuggestionRow data-testid="orb-suggestion" role="status">
+                                    <SuggestionText>{visibleSuggestion.text}</SuggestionText>
+                                    <SuggestionAccept
+                                        type="button"
+                                        onClick={() => acceptSuggestion(visibleSuggestion)}
+                                    >
+                                        {visibleSuggestion.action}
+                                    </SuggestionAccept>
+                                    <SuggestionDismiss
+                                        type="button"
+                                        title="Not now"
+                                        aria-label="Dismiss this suggestion"
+                                        onClick={() => clearSuggestion(visibleSuggestion.kind, true)}
+                                    >
+                                        <span className="codicon codicon-close" />
+                                    </SuggestionDismiss>
+                                </SuggestionRow>
+                            ) : (
+                                <>
                                 <InviteInput
                                     value={inviteText}
                                     onChange={(event) => setInviteText(event.target.value)}
@@ -669,6 +767,8 @@ export function AgentStatusOrb() {
                                         <span className="codicon codicon-close" />
                                     </InviteClear>
                                 )}
+                                </>
+                            )}
                             </InviteBox>
                             </AmbientFrame>
                     </InviteShell>

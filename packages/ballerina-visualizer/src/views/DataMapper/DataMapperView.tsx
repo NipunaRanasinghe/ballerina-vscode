@@ -61,6 +61,9 @@ import { DataMapperProps } from ".";
 import { EXPRESSION_EXTRACTION_REGEX } from "../../constants";
 import { calculateExpressionOffsets, convertBalCompletion, updateLineRange } from "../../utils/bi";
 import { createAddSubMappingRequest } from "./utils";
+import { readMappingSignal } from "./mappingSignal";
+import { clearSuggestion, offerSuggestion } from "../../components/AgentStatusOrb/shared";
+import { createMiniChatPrompt } from "../../components/AgentStatusOrb/promptHandoff";
 import { FunctionForm } from "../BI/FunctionForm";
 import { UndoRedoGroup } from "../../components/UndoRedoGroup";
 import { EntryPointTypeCreator } from "../../components/EntryPointTypeCreator";
@@ -211,6 +214,35 @@ export function DataMapperView(props: DataMapperViewProps) {
         prevSignatureRef.current = currentSignature;
 
     }, [model]);
+
+    // Offer to fill the mapper in once, after the model has settled. Waiting for
+    // the fetch to finish keeps the offer away from the half-built view, and the
+    // ref keeps it to one per opening: re-running on every model change would
+    // raise it again in the middle of the user's own dragging.
+    const offeredRef = useRef(false);
+    useEffect(() => {
+        if (offeredRef.current || isFetching || !modelState.model) {
+            return;
+        }
+        const signal = readMappingSignal(modelState.model);
+        if (!signal.shouldOffer) {
+            return;
+        }
+        offeredRef.current = true;
+        const fields = `${signal.unmappedTargets} of ${signal.totalTargets} fields`;
+        offerSuggestion({
+            kind: "data-mapper-unmapped",
+            text: `${fields} are still unmapped.`,
+            action: "Map them for me",
+            prompt: createMiniChatPrompt(
+                `Map the ${signal.unmappedTargets} unmapped output fields in the "${name}" data mapper.`
+            ),
+        });
+    }, [isFetching, modelState.model, name]);
+
+    // The offer belongs to this view; leaving it behind would leave the orb
+    // pointing at a mapper that is no longer on screen.
+    useEffect(() => () => clearSuggestion("data-mapper-unmapped"), []);
 
     const hasInputs = useMemo(
         () => modelState.model?.inputs?.length > 0,
