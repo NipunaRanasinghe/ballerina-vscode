@@ -89,6 +89,17 @@ const BLINK_DURATION_MS = 200;
 const BLINK_MIN_MS = 4000;
 const BLINK_MAX_MS = 6000;
 
+// About one blink in six comes as a quick pair. The eyes reopen for only a
+// short gap in between, so the pair reads as one gesture rather than two blinks.
+const DOUBLE_BLINK_CHANCE = 1 / 6;
+const DOUBLE_BLINK_GAP_MS = 50;
+const DOUBLE_BLINK_DURATION_MS = 2 * BLINK_DURATION_MS + DOUBLE_BLINK_GAP_MS;
+
+// When the orb starts offering a suggestion the eyes widen, double-blink from
+// the widened height, then settle back to their resting size.
+const EYE_PERK_HEIGHT_RATIO = EYE_HEIGHT_RATIO * 1.15;
+const PERK_DURATION_MS = 900;
+
 // Animates height rather than scaleY: `border-radius` resolves against the
 // unscaled box, so scaling squashes the corner radii into ellipses and the
 // blink lands on a rounded square instead of a flat slit.
@@ -98,30 +109,65 @@ const eyeBlink = keyframes`
     100% { height: var(--eye-open); }
 `;
 
+// Two of the blinks above back to back, each phase keeping the single blink's length.
+const BLINK_PHASE_MS = BLINK_DURATION_MS / 3;
+const SECOND_BLINK_MS = BLINK_DURATION_MS + DOUBLE_BLINK_GAP_MS;
+const atDouble = (ms: number) => `${((ms / DOUBLE_BLINK_DURATION_MS) * 100).toFixed(2)}%`;
+const eyeDoubleBlink = keyframes`
+    0% { height: var(--eye-open); }
+    ${atDouble(BLINK_PHASE_MS)}, ${atDouble(2 * BLINK_PHASE_MS)} { height: var(--eye-shut); }
+    ${atDouble(BLINK_DURATION_MS)}, ${atDouble(SECOND_BLINK_MS)} { height: var(--eye-open); }
+    ${atDouble(SECOND_BLINK_MS + BLINK_PHASE_MS)}, ${atDouble(SECOND_BLINK_MS + 2 * BLINK_PHASE_MS)} { height: var(--eye-shut); }
+    100% { height: var(--eye-open); }
+`;
+
+// Widen, hold, blink twice from the widened height, hold, settle. The blinks'
+// close and open phases land within a few ms of the single blink's.
+const eyePerk = keyframes`
+    0% { height: var(--eye-open); }
+    15%, 35% { height: var(--eye-perk); }
+    42% { height: var(--eye-shut); }
+    50% { height: var(--eye-perk); }
+    57% { height: var(--eye-shut); }
+    65%, 85% { height: var(--eye-perk); }
+    100% { height: var(--eye-open); }
+`;
+
+type BlinkKind = "single" | "double";
+type EyeMotion = BlinkKind | "perk";
+
+const EYE_MOTION: Record<EyeMotion, { name: ReturnType<typeof keyframes>; ms: number }> = {
+    single: { name: eyeBlink, ms: BLINK_DURATION_MS },
+    double: { name: eyeDoubleBlink, ms: DOUBLE_BLINK_DURATION_MS },
+    perk: { name: eyePerk, ms: PERK_DURATION_MS },
+};
+
 /**
- * True for the 200ms of each blink, with a fresh random gap in between.
+ * The blink currently playing, or null between blinks, with a fresh random gap
+ * in between and an occasional double blink.
  *
  * The eye rests open: there is no second resting state to animate between, so
  * this drives a one-shot animation rather than a loop.
  */
-function useBlink(): boolean {
-    const [blinking, setBlinking] = useState(false);
+function useBlink(): BlinkKind | null {
+    const [blink, setBlink] = useState<BlinkKind | null>(null);
     useEffect(() => {
         const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
         let timer: ReturnType<typeof setTimeout> | undefined;
         const stop = () => {
             clearTimeout(timer);
             timer = undefined;
-            setBlinking(false);
+            setBlink(null);
         };
         const schedule = () => {
             const gap = BLINK_MIN_MS + Math.random() * (BLINK_MAX_MS - BLINK_MIN_MS);
             timer = setTimeout(() => {
-                setBlinking(true);
+                const kind: BlinkKind = Math.random() < DOUBLE_BLINK_CHANCE ? "double" : "single";
+                setBlink(kind);
                 timer = setTimeout(() => {
-                    setBlinking(false);
+                    setBlink(null);
                     schedule();
-                }, BLINK_DURATION_MS);
+                }, EYE_MOTION[kind].ms);
             }, gap);
         };
         const applyMotionPreference = () => {
@@ -137,7 +183,24 @@ function useBlink(): boolean {
             stop();
         };
     }, []);
-    return blinking;
+    return blink;
+}
+
+/** True for one perk each time `noticing` turns on; cut short if it turns off first. */
+function usePerk(noticing: boolean): boolean {
+    const [perking, setPerking] = useState(false);
+    useEffect(() => {
+        if (!noticing) {
+            return;
+        }
+        setPerking(true);
+        const timer = setTimeout(() => setPerking(false), PERK_DURATION_MS);
+        return () => {
+            clearTimeout(timer);
+            setPerking(false);
+        };
+    }, [noticing]);
+    return perking;
 }
 
 const Eyes = styled.div<{ $size: number }>`
@@ -154,9 +217,10 @@ const Eyes = styled.div<{ $size: number }>`
  * Fixed white rather than a theme token: the sphere behind it is now always
  * dark, so a theme-driven foreground could leave the eyes unreadable.
  */
-const Eye = styled.div<{ $size: number; $blinking: boolean }>`
+const Eye = styled.div<{ $size: number; $motion: EyeMotion | null }>`
     --eye-open: ${(props: { $size: number }) => props.$size * EYE_HEIGHT_RATIO}px;
     --eye-shut: ${(props: { $size: number }) => props.$size * EYE_SHUT_HEIGHT_RATIO}px;
+    --eye-perk: ${(props: { $size: number }) => props.$size * EYE_PERK_HEIGHT_RATIO}px;
     width: ${(props: { $size: number }) => props.$size * EYE_WIDTH_RATIO}px;
     height: var(--eye-open);
     flex: none;
@@ -169,8 +233,8 @@ const Eye = styled.div<{ $size: number; $blinking: boolean }>`
         0 0 ${(props: { $size: number }) => props.$size * 0.08}px rgba(255, 180, 120, 0.3);
     // Dropping back to \`none\` between blinks is what lets the next one restart
     // the animation; a looping keyframe could not take a random gap.
-    animation-name: ${(props: { $blinking: boolean }) => (props.$blinking ? eyeBlink : "none")};
-    animation-duration: ${BLINK_DURATION_MS}ms;
+    animation-name: ${(props: { $motion: EyeMotion | null }) => (props.$motion ? EYE_MOTION[props.$motion].name : "none")};
+    animation-duration: ${(props: { $motion: EyeMotion | null }) => (props.$motion ? EYE_MOTION[props.$motion].ms : 0)}ms;
     animation-timing-function: linear;
     @media (prefers-reduced-motion: reduce) {
         animation: none;
@@ -183,11 +247,16 @@ export interface CopilotOrbProps {
     size: number;
     /** Pins a theme instead of following the shared preference. */
     theme?: OrbTheme;
+    /** True while the orb is offering a suggestion; the eyes perk up once when it turns on. */
+    noticing?: boolean;
 }
 
-export function CopilotOrb({ state, colors, size, theme }: CopilotOrbProps) {
+export function CopilotOrb({ state, colors, size, theme, noticing = false }: CopilotOrbProps) {
     const preferred = useOrbTheme();
-    const blinking = useBlink();
+    const blink = useBlink();
+    const perking = usePerk(noticing);
+    // A perk overrides any blink that lands on top of it.
+    const motion: EyeMotion | null = perking ? "perk" : blink;
     const [webglFailed, setWebglFailed] = useState(false);
     // Must be referentially stable: ShaderOrb re-creates (and loses) its GL context whenever this changes.
     const handleWebglFailed = useCallback(() => setWebglFailed(true), []);
@@ -208,8 +277,8 @@ export function CopilotOrb({ state, colors, size, theme }: CopilotOrbProps) {
             {state === "running" && <SpinArc />}
             <IconOverlay>
                 <Eyes $size={size}>
-                    <Eye $size={size} $blinking={blinking} />
-                    <Eye $size={size} $blinking={blinking} />
+                    <Eye $size={size} $motion={motion} />
+                    <Eye $size={size} $motion={motion} />
                 </Eyes>
             </IconOverlay>
         </Holder>

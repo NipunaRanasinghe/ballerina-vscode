@@ -790,7 +790,7 @@ export function AgentStatusOrb() {
                 aria-label={label ? `${assistantName}: ${label}. Click to open the mini chat, double-click for the chat panel, right-click to hide the orb.` : `Click to open the ${assistantName} mini chat, double-click for the chat panel, right-click to hide the orb`}
             >
                 <OrbGlow className={ORB_GLOW_CLASS}>
-                    <CopilotOrb state={state} colors={colors} size={ORB_SIZE} />
+                    <CopilotOrb state={state} colors={colors} size={ORB_SIZE} noticing={!!visibleSuggestion} />
                 </OrbGlow>
             </OrbButton>
         </Wrapper>
