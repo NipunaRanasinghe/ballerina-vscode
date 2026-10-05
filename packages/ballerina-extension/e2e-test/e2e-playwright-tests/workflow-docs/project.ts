@@ -112,7 +112,13 @@ export async function listenerPort(j: Journey, packageDir: string): Promise<numb
     }
     const file = path.join(packageDir, 'Config.toml');
     const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : '';
-    fs.writeFileSync(file, `${existing.trimEnd()}\n\n[ballerina.http]\ndefaultListenerPort = ${port}\n`);
+    // Replace an entry a previous run left, or extend an existing table; a second table would not parse.
+    const updated = /^defaultListenerPort\s*=.*$/m.test(existing)
+        ? existing.replace(/^defaultListenerPort\s*=.*$/m, `defaultListenerPort = ${port}`)
+        : /^\[ballerina\.http\]\s*$/m.test(existing)
+            ? existing.replace(/^\[ballerina\.http\]\s*$/m, `[ballerina.http]\ndefaultListenerPort = ${port}`)
+            : `${existing.trimEnd()}\n\n[ballerina.http]\ndefaultListenerPort = ${port}\n`;
+    fs.writeFileSync(file, updated);
     console.log(`port 9090 is taken on this machine; the integration listens on ${port} for this run`);
     void j;
     return port;

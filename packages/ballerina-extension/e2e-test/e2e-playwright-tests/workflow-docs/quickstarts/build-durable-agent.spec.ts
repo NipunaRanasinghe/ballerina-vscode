@@ -18,7 +18,7 @@
 
 import { expect, test } from '@playwright/test';
 import { initTest } from '../../utils/helpers';
-import { QUICKSTARTS, AGENT_QUICKSTART_TEMPLATE } from '../common';
+import { AGENT_QUICKSTART_TEMPLATE, QUICKSTARTS, selectAgent } from '../common';
 import { DocJourney } from '../doc-journey';
 import { Integrator } from '../integrator';
 import { projectSource } from '../project';
@@ -254,7 +254,7 @@ export default function createTests() {
                 });
                 await j.step('4.8-10', 'Set **Durable Agentic Workflow** to `claimAgent`, **Query** to `Process Claim`, **Input** to the request `payload`; leave **Instance ID Variable Name** as `instanceId`. Click **Save**.', async () => {
                     const panel = await ui.panel(/Query/);
-                    await ui.select(panel, view, 'Durable Agentic Workflow', 'claimAgent').catch(() => undefined);
+                    await selectAgent(j, ui, panel, view);
                     await ui.fill(panel, 'Query', 'Process Claim');
                     await ui.dismiss();
                     await ui.pick(panel, 'Input', ['Inputs', 'payload']);

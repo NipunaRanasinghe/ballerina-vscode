@@ -18,7 +18,7 @@
 
 import { expect, test } from '@playwright/test';
 import { initTest } from '../../utils/helpers';
-import { AGENT_ARTICLES, AGENT_TEMPLATE, openArtifact, projectSources } from '../common';
+import { AGENT_ARTICLES, AGENT_TEMPLATE, openArtifact, projectSources, selectAgent } from '../common';
 import { DocJourney } from '../doc-journey';
 import { Integrator } from '../integrator';
 
@@ -43,7 +43,7 @@ export default function createTests() {
                 await j.step('3', 'Fill in the form: **Durable Agentic Workflow**, **Query**, **Input**, **Instance ID Variable Name**.', async () => {
                     const panel = await ui.panel(/Query/);
                     await ui.expectFields(panel, [{ label: 'Durable Agentic Workflow' }, { label: 'Query' }, { label: 'Input' }, { label: 'Instance ID Variable Name' }]);
-                    await ui.select(panel, view, 'Durable Agentic Workflow', 'claimAgent').catch(() => undefined);
+                    await selectAgent(j, ui, panel, view);
                     await ui.fill(panel, 'Query', 'Start a new claim workflow');
                     await ui.dismiss();
                     await ui.pick(panel, 'Input', ['Inputs', 'payload']);

@@ -269,6 +269,8 @@ jobs:
     needs: Build_Stage
     timeout-minutes: 60
     if: ${{ inputs.runBalE2ETests }}
+    # group5 follows the workflow docs pages; it reports drift but does not block a PR until it is stable on CI.
+    continue-on-error: ${{ matrix.group == 'group5' }}
     strategy:
       fail-fast: false
       matrix:

@@ -65,7 +65,7 @@ export default function createTests() {
                     await expect.poll(async () => (await record.inputValue().catch(() => record.innerText())), { timeout: 15_000 }).toMatch(/days/);
                     const text = await record.inputValue().catch(() => record.innerText());
                     await j.click(record);
-                    await j.page.keyboard.press('Meta+A');
+                    await j.page.keyboard.press('ControlOrMeta+A');
                     await j.page.keyboard.insertText(text.replace(/(days"?\s*:\s*)[^,\n}]*/, '$11'));
                     await ui.clickButton(frame, { doc: 'Save', ui: ['Apply', 'Done', 'OK'] }).catch(() => undefined);
                 });

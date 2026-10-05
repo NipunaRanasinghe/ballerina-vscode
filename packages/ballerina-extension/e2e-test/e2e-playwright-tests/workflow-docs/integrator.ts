@@ -23,6 +23,8 @@ import { DocJourney as Journey } from './doc-journey';
 // text); a test id is used only where nothing visible identifies a control.
 
 // A label as a reader matches it: any case, optional trailing `.`/`:`/`*`, and a leading `+` or icon glyph allowed.
+export const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export const label = (text: string) => {
     const bare = text.replace(/^\+\s*/, '');
     return new RegExp(`^[\\s\\W]*${bare.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[.:]?\\s*\\*?\\s*$`, 'i');
@@ -251,7 +253,7 @@ export class Integrator {
             const frame = await this.view();
             await this.j.click(await this.text(frame, section));
             await this.j.beat(500, 600);
-            const firstRow = frame.locator('p').filter({ hasText: new RegExp(`^${first.doc}$`) }).last();
+            const firstRow = frame.locator('p').filter({ hasText: new RegExp(`^${escapeRegExp(first.doc)}$`) }).last();
             const ready = await firstRow.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false)
                 || first.ui !== undefined;
             if (!ready && attempt < 2) {
@@ -260,7 +262,7 @@ export class Integrator {
             }
             for (const [i, part] of rest.entries()) {
                 const row = await this.j.resolve(asNames(part), (name) =>
-                    frame.locator('p').filter({ hasText: new RegExp(`^${name}$`) }).last());
+                    frame.locator('p').filter({ hasText: new RegExp(`^${escapeRegExp(name)}$`) }).last());
                 if (i < rest.length - 1) {
                     const chevron = row.locator('xpath=ancestor::*[.//*[contains(@class,"codicon-chevron-right")]][1]')
                         .locator('.codicon-chevron-right').first();

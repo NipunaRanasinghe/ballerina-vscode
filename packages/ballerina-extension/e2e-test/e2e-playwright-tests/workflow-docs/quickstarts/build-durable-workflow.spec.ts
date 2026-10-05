@@ -176,7 +176,7 @@ export default function createTests() {
                 await j.step('5.3', '**Condition** is prefilled with `true`. Replace it with the value the wait produced: click the field and pick `payment` under **Variables** in the value helper.', async () => {
                     const panel = await ui.panel(/Condition/i);
                     await j.click(await ui.field(panel, 'Condition'));
-                    await j.page.keyboard.press('Meta+A');
+                    await j.page.keyboard.press('ControlOrMeta+A');
                     await j.page.keyboard.press('Backspace');
                     await ui.pick(panel, 'Condition', ['Variables', 'payment']);
                 });

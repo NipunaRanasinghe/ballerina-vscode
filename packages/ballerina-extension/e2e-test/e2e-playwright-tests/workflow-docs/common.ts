@@ -18,10 +18,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { FrameLocator } from '@playwright/test';
+import { FrameLocator, Locator } from '@playwright/test';
 import { newProjectPath } from '../utils/helpers';
 import { DocJourney } from './doc-journey';
-import { Integrator } from './integrator';
+import { escapeRegExp, Integrator } from './integrator';
 
 // The articles start inside a project, so they open a template: the order project the quickstart builds plus
 // the workflows and activities the articles' examples use, or the claim-handling agent project.
@@ -44,9 +44,22 @@ export function projectSources(): () => string {
 // Waits for the project to load, then opens one of its artifacts from the sidebar.
 export async function openArtifact(j: DocJourney, ui: Integrator, project: string, name: string,
     expect: string | RegExp = /Start/): Promise<FrameLocator> {
-    await j.page.getByRole('treeitem', { name: new RegExp(`^${project}`, 'i') }).first().waitFor({ state: 'visible', timeout: 180_000 });
+    await j.page.getByRole('treeitem', { name: new RegExp(`^${escapeRegExp(project)}`, 'i') }).first().waitFor({ state: 'visible', timeout: 180_000 });
     await ui.sidebar(name);
     const opened = await ui.view(expect, 20_000).catch(() => undefined);
     // Clicking the row that is already selected does not reopen it; the breadcrumb does.
     return opened ?? ui.crumb(name, expect);
+}
+
+// Picks the agent on a form's Durable Agentic Workflow field; a form that already shows it needs no pick.
+export async function selectAgent(j: DocJourney, ui: Integrator, panel: Locator, view: FrameLocator,
+    agent = 'claimAgent'): Promise<void> {
+    const picked = await ui.select(panel, view, 'Durable Agentic Workflow', agent).then(() => true).catch(() => false);
+    if (!picked && !await panel.getByText(agent, { exact: true }).first().isVisible().catch(() => false)) {
+        await j.finding({
+            kind: 'missing',
+            says: `Set **Durable Agentic Workflow** to \`${agent}\``,
+            actual: `The form has no **Durable Agentic Workflow** field offering \`${agent}\``,
+        });
+    }
 }
