@@ -272,7 +272,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [group1, group2, group3, group4]
+        group: [group1, group2, group3, group4, group5]
     runs-on: ${{ inputs.runOnAWS && inputs.awsRunnerId || 'ubuntu-latest' }}
     steps:
       - name: Restore build
