@@ -100,6 +100,13 @@ const DOUBLE_BLINK_DURATION_MS = 2 * BLINK_DURATION_MS + DOUBLE_BLINK_GAP_MS;
 const EYE_PERK_HEIGHT_RATIO = EYE_HEIGHT_RATIO * 1.15;
 const PERK_DURATION_MS = 900;
 
+// While running the eyes squint and glance left and right, holding at each side.
+// The squint is a resting height, so blinks start and end on it.
+const EYE_SQUINT_HEIGHT_RATIO = EYE_HEIGHT_RATIO * 0.65;
+const EYE_DRIFT_RATIO = 0.06;
+const DRIFT_PERIOD_MS = 4000;
+const SQUINT_TRANSITION_MS = 200;
+
 // Animates height rather than scaleY: `border-radius` resolves against the
 // unscaled box, so scaling squashes the corner radii into ellipses and the
 // blink lands on a rounded square instead of a flat slit.
@@ -131,6 +138,12 @@ const eyePerk = keyframes`
     57% { height: var(--eye-shut); }
     65%, 85% { height: var(--eye-perk); }
     100% { height: var(--eye-open); }
+`;
+
+const eyeDrift = keyframes`
+    0%, 100% { transform: translateX(0); }
+    20%, 35% { transform: translateX(calc(-1 * var(--eye-drift))); }
+    65%, 80% { transform: translateX(var(--eye-drift)); }
 `;
 
 type BlinkKind = "single" | "double";
@@ -203,12 +216,18 @@ function usePerk(noticing: boolean): boolean {
     return perking;
 }
 
-const Eyes = styled.div<{ $size: number }>`
+const Eyes = styled.div<{ $size: number; $thinking: boolean }>`
+    --eye-drift: ${(props: { $size: number }) => props.$size * EYE_DRIFT_RATIO}px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: ${(props: { $size: number }) => props.$size * EYE_GAP_RATIO}px;
     pointer-events: none;
+    animation: ${(props: { $thinking: boolean }) => (props.$thinking ? eyeDrift : "none")} ${DRIFT_PERIOD_MS}ms
+        ease-in-out infinite;
+    @media (prefers-reduced-motion: reduce) {
+        animation: none;
+    }
 `;
 
 /**
@@ -217,8 +236,9 @@ const Eyes = styled.div<{ $size: number }>`
  * Fixed white rather than a theme token: the sphere behind it is now always
  * dark, so a theme-driven foreground could leave the eyes unreadable.
  */
-const Eye = styled.div<{ $size: number; $motion: EyeMotion | null }>`
-    --eye-open: ${(props: { $size: number }) => props.$size * EYE_HEIGHT_RATIO}px;
+const Eye = styled.div<{ $size: number; $motion: EyeMotion | null; $squint: boolean }>`
+    --eye-open: ${(props: { $size: number; $squint: boolean }) =>
+        props.$size * (props.$squint ? EYE_SQUINT_HEIGHT_RATIO : EYE_HEIGHT_RATIO)}px;
     --eye-shut: ${(props: { $size: number }) => props.$size * EYE_SHUT_HEIGHT_RATIO}px;
     --eye-perk: ${(props: { $size: number }) => props.$size * EYE_PERK_HEIGHT_RATIO}px;
     width: ${(props: { $size: number }) => props.$size * EYE_WIDTH_RATIO}px;
@@ -236,8 +256,11 @@ const Eye = styled.div<{ $size: number; $motion: EyeMotion | null }>`
     animation-name: ${(props: { $motion: EyeMotion | null }) => (props.$motion ? EYE_MOTION[props.$motion].name : "none")};
     animation-duration: ${(props: { $motion: EyeMotion | null }) => (props.$motion ? EYE_MOTION[props.$motion].ms : 0)}ms;
     animation-timing-function: linear;
+    transition: height ${SQUINT_TRANSITION_MS}ms ease-out;
+    // The squint itself stays: it is a pose, not motion.
     @media (prefers-reduced-motion: reduce) {
         animation: none;
+        transition: none;
     }
 `;
 
@@ -257,6 +280,7 @@ export function CopilotOrb({ state, colors, size, theme, noticing = false }: Cop
     const perking = usePerk(noticing);
     // A perk overrides any blink that lands on top of it.
     const motion: EyeMotion | null = perking ? "perk" : blink;
+    const thinking = state === "running";
     const [webglFailed, setWebglFailed] = useState(false);
     // Must be referentially stable: ShaderOrb re-creates (and loses) its GL context whenever this changes.
     const handleWebglFailed = useCallback(() => setWebglFailed(true), []);
@@ -276,9 +300,9 @@ export function CopilotOrb({ state, colors, size, theme, noticing = false }: Cop
             )}
             {state === "running" && <SpinArc />}
             <IconOverlay>
-                <Eyes $size={size}>
-                    <Eye $size={size} $motion={motion} />
-                    <Eye $size={size} $motion={motion} />
+                <Eyes $size={size} $thinking={thinking}>
+                    <Eye $size={size} $motion={motion} $squint={thinking} />
+                    <Eye $size={size} $motion={motion} $squint={thinking} />
                 </Eyes>
             </IconOverlay>
         </Holder>
