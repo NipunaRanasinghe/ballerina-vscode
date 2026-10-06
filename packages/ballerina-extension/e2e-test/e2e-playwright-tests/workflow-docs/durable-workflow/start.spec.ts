@@ -42,7 +42,7 @@ export default function createTests() {
             await j.step('3', 'Fill in the form: **Input**, **Workflow ID Variable Name**.', async () => {
                 // The page goes straight to the form; the panel first lists the workflows to start.
                 const panel = await ui.panel();
-                if (await panel.getByText('orderWorkflow', { exact: true }).first().isVisible({ timeout: 5000 }).catch(() => false)
+                if (await panel.getByText('orderWorkflow', { exact: true }).first().waitFor({ state: 'visible', timeout: 5000 }).then(() => true, () => false)
                     && !await panel.getByText(/Workflow ID Variable Name/i).first().isVisible().catch(() => false)) {
                     await j.finding({
                         kind: 'gap',

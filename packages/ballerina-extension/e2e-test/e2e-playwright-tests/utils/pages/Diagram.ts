@@ -154,6 +154,9 @@ export class Diagram {
                 await this._page.waitForTimeout(500);
             }
         }
+        if (buttons.length === 0) {
+            throw new Error('no empty node with a + rendered within 30s');
+        }
         // The lowest row of empty nodes belongs to the If just added.
         const lowest = Math.max(...buttons.map((b) => b.y));
         const row = buttons.filter((b) => Math.abs(b.y - lowest) < 10).sort((a, b) => a.x - b.x);

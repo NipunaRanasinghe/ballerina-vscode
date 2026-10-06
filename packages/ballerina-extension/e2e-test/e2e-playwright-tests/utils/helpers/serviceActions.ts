@@ -59,7 +59,7 @@ export async function deleteArtifactFromTree(treeItemPath: string[]): Promise<vo
 export async function stopAllRunningIntegrations(): Promise<void> {
     for (let i = 0; i < 4; i++) {
         const stopButton = page.page.locator('.debug-toolbar a[aria-label^="Stop"]').first();
-        if (!await stopButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+        if (!await stopButton.waitFor({ state: 'visible', timeout: 2000 }).then(() => true, () => false)) {
             return;
         }
         await stopButton.click().catch(() => undefined);

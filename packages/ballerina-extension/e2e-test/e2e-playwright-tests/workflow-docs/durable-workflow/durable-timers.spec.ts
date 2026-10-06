@@ -47,7 +47,7 @@ export default function createTests() {
                 const frame = await ui.view();
                 await j.click(await ui.field(panel, 'Duration'));
                 const editor = frame.getByText(/Record Configuration/i).first();
-                if (!await editor.isVisible({ timeout: 10000 }).catch(() => false)) {
+                if (!await editor.waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false)) {
                     await j.finding({
                         kind: 'behaviour',
                         says: 'On **Record**, click the field to open the **Record Configuration** editor',
