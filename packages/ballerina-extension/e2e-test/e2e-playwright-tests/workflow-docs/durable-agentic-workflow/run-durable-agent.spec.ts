@@ -25,36 +25,32 @@ import { Integrator } from '../integrator';
 // "Run a Durable Agent": add the step to a resource and check its form against the page's field table.
 
 export default function createTests() {
-    test.describe.serial('Docs: Run a Durable Agent', () => {
+    test.describe.serial('Run a Durable Agent Docs Tests', () => {
         initTest(true, true, undefined, undefined, AGENT_TEMPLATE);
 
         test('Run a Durable Agent', async () => {
             const j = new DocJourney({ title: 'Run a Durable Agent', slug: `${AGENT_ARTICLES}/run-durable-agent` });
             const ui = new Integrator(j);
-            try {
-                const source = projectSources();
-                const view = await openArtifact(j, ui, 'ClaimHandler', 'claim');
-                await j.step('1', 'On the flow diagram, click **+**.', async () => {
-                    await ui.plusBelow(view, 'Start');
-                });
-                await j.step('2', 'In the node panel, under **Workflow**, click **Run Durable Agent**.', async () => {
-                    await ui.palette(['Workflow', 'Run Durable Agent']);
-                });
-                await j.step('3', 'Fill in the form: **Durable Agentic Workflow**, **Query**, **Input**, **Instance ID Variable Name**.', async () => {
-                    const panel = await ui.panel(/Query/);
-                    await ui.expectFields(panel, [{ label: 'Durable Agentic Workflow' }, { label: 'Query' }, { label: 'Input' }, { label: 'Instance ID Variable Name' }]);
-                    await selectAgent(j, ui, panel, view);
-                    await ui.fill(panel, 'Query', 'Start a new claim workflow');
-                    await ui.dismiss();
-                    await ui.pick(panel, 'Input', ['Inputs', 'payload']);
-                });
-                await j.step('4', 'Click **Save**.', async () => {
-                    await ui.saveForm();
-                    await expect.poll(source, { timeout: 60_000 }).toMatch(/claimAgent\.run\(/);
-                });
-            } finally {
-                await j.attachFindings();
-            }
+            const source = projectSources();
+            const view = await openArtifact(j, ui, 'ClaimHandler', 'claim');
+            await j.step('1', 'On the flow diagram, click **+**.', async () => {
+                await ui.plusBelow(view, 'Start');
+            });
+            await j.step('2', 'In the node panel, under **Workflow**, click **Run Durable Agent**.', async () => {
+                await ui.palette(['Workflow', 'Run Durable Agent']);
+            });
+            await j.step('3', 'Fill in the form: **Durable Agentic Workflow**, **Query**, **Input**, **Instance ID Variable Name**.', async () => {
+                const panel = await ui.panel(/Query/);
+                await ui.expectFields(panel, [{ label: 'Durable Agentic Workflow' }, { label: 'Query' }, { label: 'Input' }, { label: 'Instance ID Variable Name' }]);
+                await selectAgent(j, ui, panel, view);
+                await ui.fill(panel, 'Query', 'Start a new claim workflow');
+                await ui.dismiss();
+                await ui.pick(panel, 'Input', ['Inputs', 'payload']);
+            });
+            await j.step('4', 'Click **Save**.', async () => {
+                await ui.saveForm();
+                await expect.poll(source, { timeout: 60000 }).toMatch(/claimAgent\.run\(/);
+            });
         });
     });
 }

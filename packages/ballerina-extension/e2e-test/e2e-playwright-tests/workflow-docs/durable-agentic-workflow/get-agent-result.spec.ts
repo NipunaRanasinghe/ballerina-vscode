@@ -25,34 +25,30 @@ import { Integrator } from '../integrator';
 // "Get an Agent Result": add the step to a resource and check its form against the page's field table.
 
 export default function createTests() {
-    test.describe.serial('Docs: Get an Agent Result', () => {
+    test.describe.serial('Get an Agent Result Docs Tests', () => {
         initTest(true, true, undefined, undefined, AGENT_TEMPLATE);
 
         test('Get an Agent Result', async () => {
             const j = new DocJourney({ title: 'Get an Agent Result', slug: `${AGENT_ARTICLES}/get-agent-result` });
             const ui = new Integrator(j);
-            try {
-                const source = projectSources();
-                const view = await openArtifact(j, ui, 'ClaimHandler', '[string workflowId]/result');
-                await j.step('1', 'On the flow diagram, click **+**.', async () => {
-                    await ui.plusBelow(view, 'Start');
-                });
-                await j.step('2', 'In the node panel, under **Workflow**, click **Get Agent Result**.', async () => {
-                    await ui.palette(['Workflow', 'Get Agent Result']);
-                });
-                await j.step('3', 'Fill in the form: **Durable Agentic Workflow**, **Instance Id**, **Wait For Result**, **Result**, **Result Type**.', async () => {
-                    const panel = await ui.panel(/Instance Id/i);
-                    await ui.expectFields(panel, [{ label: 'Durable Agentic Workflow' }, { label: 'Instance Id' }, { label: 'Wait For Result' }, { label: 'Result' }, { label: 'Result Type' }]);
-                    await selectAgent(j, ui, panel, view);
-                    await ui.pick(panel, 'Instance Id', ['Inputs', 'workflowId']);
-                });
-                await j.step('4', 'Click **Save**.', async () => {
-                    await ui.saveForm();
-                    await expect.poll(source, { timeout: 60_000 }).toMatch(/claimAgent\.(waitForResult|getResult)\(/);
-                });
-            } finally {
-                await j.attachFindings();
-            }
+            const source = projectSources();
+            const view = await openArtifact(j, ui, 'ClaimHandler', '[string workflowId]/result');
+            await j.step('1', 'On the flow diagram, click **+**.', async () => {
+                await ui.plusBelow(view, 'Start');
+            });
+            await j.step('2', 'In the node panel, under **Workflow**, click **Get Agent Result**.', async () => {
+                await ui.palette(['Workflow', 'Get Agent Result']);
+            });
+            await j.step('3', 'Fill in the form: **Durable Agentic Workflow**, **Instance Id**, **Wait For Result**, **Result**, **Result Type**.', async () => {
+                const panel = await ui.panel(/Instance Id/i);
+                await ui.expectFields(panel, [{ label: 'Durable Agentic Workflow' }, { label: 'Instance Id' }, { label: 'Wait For Result' }, { label: 'Result' }, { label: 'Result Type' }]);
+                await selectAgent(j, ui, panel, view);
+                await ui.pick(panel, 'Instance Id', ['Inputs', 'workflowId']);
+            });
+            await j.step('4', 'Click **Save**.', async () => {
+                await ui.saveForm();
+                await expect.poll(source, { timeout: 60000 }).toMatch(/claimAgent\.(waitForResult|getResult)\(/);
+            });
         });
     });
 }

@@ -25,36 +25,32 @@ import { Integrator } from '../integrator';
 // "Send an Agent Data Event": add the step to a resource and check its form against the page's field table.
 
 export default function createTests() {
-    test.describe.serial('Docs: Send an Agent Data Event', () => {
+    test.describe.serial('Send an Agent Data Event Docs Tests', () => {
         initTest(true, true, undefined, undefined, AGENT_TEMPLATE);
 
         test('Send an Agent Data Event', async () => {
             const j = new DocJourney({ title: 'Send an Agent Data Event', slug: `${AGENT_ARTICLES}/send-agent-data-event` });
             const ui = new Integrator(j);
-            try {
-                const source = projectSources();
-                const view = await openArtifact(j, ui, 'ClaimHandler', '[string workflowId]/chat');
-                await j.step('1', 'On the flow diagram, click **+**.', async () => {
-                    await ui.plusBelow(view, 'Start');
-                });
-                await j.step('2', 'In the node panel, under **Workflow**, click **Send Agent Data Event**.', async () => {
-                    await ui.palette(['Workflow', 'Send Agent Data Event']);
-                });
-                await j.step('3', 'Fill in the form: **Durable Agentic Workflow**, **Instance Id**, **Data Event**, **Data**, **Result**.', async () => {
-                    const panel = await ui.panel(/Instance Id/i);
-                    await ui.expectFields(panel, [{ label: 'Durable Agentic Workflow' }, { label: 'Instance Id' }, { label: 'Data Event' }, { label: 'Data' }, { label: 'Result' }]);
-                    await selectAgent(j, ui, panel, view);
-                    await ui.pick(panel, 'Instance Id', ['Inputs', 'workflowId']);
-                    await ui.select(panel, view, 'Data Event', 'chat');
-                    await ui.pick(panel, 'Data', ['Inputs', 'msg']);
-                });
-                await j.step('4', 'Click **Save**.', async () => {
-                    await ui.saveForm();
-                    await expect.poll(source, { timeout: 60_000 }).toMatch(/claimAgent\.sendData\(/);
-                });
-            } finally {
-                await j.attachFindings();
-            }
+            const source = projectSources();
+            const view = await openArtifact(j, ui, 'ClaimHandler', '[string workflowId]/chat');
+            await j.step('1', 'On the flow diagram, click **+**.', async () => {
+                await ui.plusBelow(view, 'Start');
+            });
+            await j.step('2', 'In the node panel, under **Workflow**, click **Send Agent Data Event**.', async () => {
+                await ui.palette(['Workflow', 'Send Agent Data Event']);
+            });
+            await j.step('3', 'Fill in the form: **Durable Agentic Workflow**, **Instance Id**, **Data Event**, **Data**, **Result**.', async () => {
+                const panel = await ui.panel(/Instance Id/i);
+                await ui.expectFields(panel, [{ label: 'Durable Agentic Workflow' }, { label: 'Instance Id' }, { label: 'Data Event' }, { label: 'Data' }, { label: 'Result' }]);
+                await selectAgent(j, ui, panel, view);
+                await ui.pick(panel, 'Instance Id', ['Inputs', 'workflowId']);
+                await ui.select(panel, view, 'Data Event', 'chat');
+                await ui.pick(panel, 'Data', ['Inputs', 'msg']);
+            });
+            await j.step('4', 'Click **Save**.', async () => {
+                await ui.saveForm();
+                await expect.poll(source, { timeout: 60000 }).toMatch(/claimAgent\.sendData\(/);
+            });
         });
     });
 }

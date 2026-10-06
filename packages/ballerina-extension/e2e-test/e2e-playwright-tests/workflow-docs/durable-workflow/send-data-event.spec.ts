@@ -25,37 +25,33 @@ import { Integrator } from '../integrator';
 // "Send a Data Event": add Send Data Event to the payment resource and check its form.
 
 export default function createTests() {
-    test.describe.serial('Docs: Send a Data Event', () => {
+    test.describe.serial('Send a Data Event Docs Tests', () => {
         initTest(true, true, undefined, undefined, ORDER_TEMPLATE);
 
         test('Send a Data Event', async () => {
             const j = new DocJourney({ title: 'Send a Data Event', slug: `${WORKFLOW_ARTICLES}/send-data-event` });
             const ui = new Integrator(j);
-            try {
-                const source = projectSources();
-                const view = await openArtifact(j, ui, 'OrderProcessor', '[string orderId]/payment');
-                await j.step('1', 'In the trigger artifact flow design, click **+**.', async () => {
-                    await ui.plusBelow(view, 'Start');
-                });
-                await j.step('2', 'In the node panel, under **Workflow**, click **Send Data Event**.', async () => {
-                    await ui.palette(['Workflow', { doc: 'Send Data Event', ui: ['Send Data'] }]);
-                });
-                await j.step('3', 'Fill in the form: **Workflow Name**, **Target Workflow Id**, **Data Name**, **Data**.', async () => {
-                    const panel = await ui.panel(/Workflow/);
-                    await ui.expectFields(panel, [{ label: 'Workflow Name' }, { label: 'Target Workflow Id' }, { label: 'Data Name' }, { label: 'Data' }]);
-                    await ui.select(panel, view, 'Workflow Name', 'orderWorkflow');
-                    await ui.pick(panel, 'Target Workflow Id', ['Inputs', 'orderId']);
-                    await ui.select(panel, view, 'Data Name', 'payment');
-                    await ui.fill(panel, 'Data', 'true');
-                    await ui.dismiss();
-                });
-                await j.step('4', 'Click **Save**.', async () => {
-                    await ui.saveForm();
-                    await expect.poll(source, { timeout: 60_000 }).toMatch(/workflow:sendData\(orderWorkflow, orderId, "payment", true\)/);
-                });
-            } finally {
-                await j.attachFindings();
-            }
+            const source = projectSources();
+            const view = await openArtifact(j, ui, 'OrderProcessor', '[string orderId]/payment');
+            await j.step('1', 'In the trigger artifact flow design, click **+**.', async () => {
+                await ui.plusBelow(view, 'Start');
+            });
+            await j.step('2', 'In the node panel, under **Workflow**, click **Send Data Event**.', async () => {
+                await ui.palette(['Workflow', { doc: 'Send Data Event', ui: ['Send Data'] }]);
+            });
+            await j.step('3', 'Fill in the form: **Workflow Name**, **Target Workflow Id**, **Data Name**, **Data**.', async () => {
+                const panel = await ui.panel(/Workflow/);
+                await ui.expectFields(panel, [{ label: 'Workflow Name' }, { label: 'Target Workflow Id' }, { label: 'Data Name' }, { label: 'Data' }]);
+                await ui.select(panel, view, 'Workflow Name', 'orderWorkflow');
+                await ui.pick(panel, 'Target Workflow Id', ['Inputs', 'orderId']);
+                await ui.select(panel, view, 'Data Name', 'payment');
+                await ui.fill(panel, 'Data', 'true');
+                await ui.dismiss();
+            });
+            await j.step('4', 'Click **Save**.', async () => {
+                await ui.saveForm();
+                await expect.poll(source, { timeout: 60000 }).toMatch(/workflow:sendData\(orderWorkflow, orderId, "payment", true\)/);
+            });
         });
     });
 }

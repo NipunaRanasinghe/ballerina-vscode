@@ -25,31 +25,27 @@ import { Integrator } from '../integrator';
 // "Management API", "From the designer": the overview checkbox that adds the REST module.
 
 export default function createTests() {
-    test.describe.serial('Docs: Management API', () => {
+    test.describe.serial('Management API Docs Tests', () => {
         initTest(true, true, undefined, undefined, ORDER_TEMPLATE);
 
         test('Management API', async () => {
             const j = new DocJourney({ title: 'Management API', slug: `${WORKFLOW_ARTICLES}/management-api` });
             const ui = new Integrator(j);
-            try {
-                const source = projectSources();
-                await j.page.getByRole('treeitem', { name: /^OrderProcessor/ }).first().waitFor({ state: 'visible', timeout: 180_000 });
-                let view = await ui.view();
-                await j.step('1', 'Open the integration overview.', async () => {
-                    await ui.sidebar('OrderProcessor');
-                    view = await ui.view(/Add Artifact/i, 120_000);
-                });
-                await j.step('2', 'In the right panel, below **Integration Control Plane**, find the **Workflow** section.', async () => {
-                    await expect(view.getByRole('heading', { name: 'Integration Control Plane' })).toBeVisible();
-                    await expect(view.getByRole('heading', { name: 'Workflow', exact: true })).toBeVisible();
-                });
-                await j.step('3', 'Select **Enable Workflow Management REST API**. Selecting it adds the `ballerina/workflow.management.rest` import to `main.bal`.', async () => {
-                    await j.click(view.getByRole('checkbox', { name: /Enable Workflow Management REST API/ }));
-                    await expect.poll(source, { timeout: 60_000 }).toMatch(/import ballerina\/workflow\.management\.rest/);
-                });
-            } finally {
-                await j.attachFindings();
-            }
+            const source = projectSources();
+            await j.page.getByRole('treeitem', { name: /^OrderProcessor/ }).first().waitFor({ state: 'visible', timeout: 180000 });
+            let view = await ui.view();
+            await j.step('1', 'Open the integration overview.', async () => {
+                await ui.sidebar('OrderProcessor');
+                view = await ui.view(/Add Artifact/i, 120000);
+            });
+            await j.step('2', 'In the right panel, below **Integration Control Plane**, find the **Workflow** section.', async () => {
+                await expect(view.getByRole('heading', { name: 'Integration Control Plane' })).toBeVisible();
+                await expect(view.getByRole('heading', { name: 'Workflow', exact: true })).toBeVisible();
+            });
+            await j.step('3', 'Select **Enable Workflow Management REST API**. Selecting it adds the `ballerina/workflow.management.rest` import to `main.bal`.', async () => {
+                await j.click(view.getByRole('checkbox', { name: /Enable Workflow Management REST API/ }));
+                await expect.poll(source, { timeout: 60000 }).toMatch(/import ballerina\/workflow\.management\.rest/);
+            });
         });
     });
 }

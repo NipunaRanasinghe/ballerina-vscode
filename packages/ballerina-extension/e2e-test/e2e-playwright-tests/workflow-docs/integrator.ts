@@ -17,6 +17,8 @@
  */
 
 import { FrameLocator, Locator } from '@playwright/test';
+import { clickArtifactCard, reacquireWindow, webviewFrame } from '../utils/helpers';
+import { Diagram, ProjectExplorer, SidePanel } from '../utils/pages';
 import { DocJourney as Journey } from './doc-journey';
 
 // The WSO2 Integrator UI as the docs name it. Controls are found by what a reader sees (labels, roles,
@@ -43,24 +45,24 @@ export class Integrator {
 
     // ------------------------------------------------------------------ frames
 
-    // The designer webview as a lazy locator chain: VS Code swaps the inner frame as content updates, so a held
-    // FrameLocator goes stale. With a hint, waits until that text shows.
-    async view(hint?: string | RegExp, timeoutMs = 60_000): Promise<FrameLocator> {
+    // The designer webview; with a hint, waits until that text shows.
+    async view(hint?: string | RegExp, timeoutMs = 60000): Promise<FrameLocator> {
         const deadline = Date.now() + timeoutMs;
         let lastError: Error | undefined;
-        // Opening a project can replace the window mid-wait; a closed window means: look again.
+        // Opening a project can replace the window mid-wait; a closed window is reacquired and searched again.
         while (Date.now() < deadline) {
-            const frame = this.page.frameLocator('iframe.webview.ready:visible').last().frameLocator('iframe:visible').first();
+            const frame = webviewFrame(this.page);
             const ready = hint === undefined ? frame.locator('body') : frame.getByText(hint).filter({ visible: true }).first();
             try {
-                await ready.waitFor({ state: 'visible', timeout: Math.max(1_000, deadline - Date.now()) });
+                await ready.waitFor({ state: 'visible', timeout: Math.max(1000, deadline - Date.now()) });
                 return frame;
             } catch (error) {
                 lastError = error as Error;
                 if (!/closed/i.test(lastError.message)) {
                     break;
                 }
-                await new Promise((resolve) => setTimeout(resolve, 1_000));
+                console.log('  ℹ️  the window closed while waiting for the view; reacquiring it');
+                await reacquireWindow();
             }
         }
         throw new Error(`No Integrator view showing '${hint ?? 'anything'}' within ${timeoutMs} ms: ${lastError?.message ?? ''}`);
@@ -71,9 +73,9 @@ export class Integrator {
         const frame = await this.view(hint);
         // Panels can stack (the HTTP method list under the resource form); the last one is on top.
         const panel = frame.getByTestId('side-panel').filter({ visible: true }).last();
-        await panel.waitFor({ state: 'visible', timeout: 30_000 });
+        await panel.waitFor({ state: 'visible', timeout: 30000 });
         // A form fills in after its panel opens; checking it earlier reports every field as missing.
-        await panel.getByText(/^Loading form data/).waitFor({ state: 'hidden', timeout: 60_000 }).catch(() => undefined);
+        await panel.getByText(/^Loading form data/).waitFor({ state: 'hidden', timeout: 60000 }).catch(() => undefined);
         return panel;
     }
 
@@ -83,10 +85,10 @@ export class Integrator {
     async command(title: string): Promise<void> {
         await this.page.keyboard.press('ControlOrMeta+Shift+P');
         const input = this.page.locator('.quick-input-widget input');
-        await input.waitFor({ state: 'visible', timeout: 15_000 });
+        await input.waitFor({ state: 'visible', timeout: 15000 });
         await input.pressSequentially(title, { delay: 15 });
         const option = this.page.locator('.quick-input-widget .monaco-list-row', { hasText: title }).first();
-        await option.waitFor({ state: 'visible', timeout: 30_000 });
+        await option.waitFor({ state: 'visible', timeout: 30000 });
         await this.page.keyboard.press('Enter');
     }
 
@@ -150,7 +152,7 @@ export class Integrator {
         if (kind !== 'cm') {
             await this.j.click(input);
             await input.fill('');
-            await input.pressSequentially(value, { delay: this.j.typeDelay() });
+            await input.pressSequentially(value);
         } else {
             // An expression editor re-renders on focus and while typed into, dropping keys; insert in one event, then read
             // back and retry until the value sticks.
@@ -163,11 +165,7 @@ export class Integrator {
             await this.page.waitForTimeout(600);
             await this.page.keyboard.press('ControlOrMeta+A');
             await this.page.keyboard.press('Backspace');
-            if (this.j.typeDelay() > 0) {
-                await this.page.keyboard.type(value, { delay: this.j.typeDelay() });
-            } else {
-                await this.page.keyboard.insertText(value);
-            }
+            await this.page.keyboard.insertText(value);
             for (let attempt = 0; attempt < 3 && await settled() !== normalise(value); attempt++) {
                 await this.j.click(input);
                 await this.page.keyboard.press('ControlOrMeta+A');
@@ -181,7 +179,7 @@ export class Integrator {
                 throw new Error(`Step ${this.j.stepId}: '${asNames(names).doc}' reads '${got.slice(0, 80)}' after typing`);
             }
         }
-        await this.j.beat(400, 300);
+        await this.page.waitForTimeout(300);
     }
 
     // Adds text after what an expression field already holds, as a reader typing at its end would.
@@ -198,11 +196,7 @@ export class Integrator {
             await this.page.waitForTimeout(500);
             await this.page.keyboard.press('ControlOrMeta+ArrowDown');
             await this.page.keyboard.press('End');
-            if (attempt === 0 && this.j.typeDelay() > 0) {
-                await this.page.keyboard.type(text, { delay: this.j.typeDelay() });
-            } else {
-                await this.page.keyboard.insertText(text);
-            }
+            await this.page.keyboard.insertText(text);
             await this.page.waitForTimeout(900);
             if (attempt < 2 && !await done()) {
                 // A lost or doubled insert: put back what was there before trying again.
@@ -216,7 +210,7 @@ export class Integrator {
             const got = await read();
             throw new Error(`Step ${this.j.stepId}: '${asNames(names).doc}' reads '${got.slice(0, 80)}', expected '${want}'`);
         }
-        await this.j.beat(400, 300);
+        await this.page.waitForTimeout(300);
     }
 
     // Picks a dropdown option for a field found by label.
@@ -236,7 +230,7 @@ export class Integrator {
         const container = labelNode.locator('xpath=ancestor::*[.//*[normalize-space()="Expression"]][1]');
         const toggle = container.getByText(modeName, { exact: true }).first();
         await this.j.click(toggle);
-        await this.j.beat(400, 300);
+        await this.page.waitForTimeout(300);
     }
 
     // Fills a field from its value helper as the docs say ("Inputs > orderInfo > customerEmail"): first entry is the
@@ -252,9 +246,9 @@ export class Integrator {
             await this.page.keyboard.press('End');
             const frame = await this.view();
             await this.j.click(await this.text(frame, section));
-            await this.j.beat(500, 600);
+            await this.page.waitForTimeout(600);
             const firstRow = frame.locator('p').filter({ hasText: new RegExp(`^${escapeRegExp(first.doc)}$`) }).last();
-            const ready = await firstRow.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false)
+            const ready = await firstRow.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false)
                 || first.ui !== undefined;
             if (!ready && attempt < 2) {
                 await this.dismiss();
@@ -267,12 +261,12 @@ export class Integrator {
                     const chevron = row.locator('xpath=ancestor::*[.//*[contains(@class,"codicon-chevron-right")]][1]')
                         .locator('.codicon-chevron-right').first();
                     await this.j.click(chevron);
-                    await this.j.beat(500, 500);
+                    await this.page.waitForTimeout(500);
                 } else {
                     await this.j.click(row);
                 }
             }
-            await this.j.beat(500, 400);
+            await this.page.waitForTimeout(400);
             return;
         }
     }
@@ -309,7 +303,7 @@ export class Integrator {
         if (!(await arrived())) {
             throw new Error(`the open icon on '${nodeText}' did not open its diagram`);
         }
-        await this.j.beat(1_200, 800);
+        await this.page.waitForTimeout(800);
     }
 
     // Clicks a breadcrumb at the top of the view, e.g. the integration name to return to its overview.
@@ -317,43 +311,27 @@ export class Integrator {
         const frame = await this.view();
         const item = frame.locator(`[title="${name}"]`).filter({ visible: true }).first();
         await this.j.click(item);
-        const arrived = await this.view(expect, 15_000).then(() => true).catch(() => false);
+        const arrived = await this.view(expect, 15000).then(() => true).catch(() => false);
         if (!arrived) {
             await item.dispatchEvent('click');
         }
-        return this.view(expect, 60_000);
+        return this.view(expect, 60000);
     }
 
-    // An item in the integration's explorer tree in the sidebar, e.g. `orderWorkflow` under Workflows.
-    // The integration overview, through the project row's Open View action as ProjectExplorer.goToOverview does; a click
-    // on the row itself does nothing while it is selected.
+    // The integration overview, through the project row's Open View action; a click on the row itself does nothing
+    // while it is selected.
     async overview(): Promise<FrameLocator> {
-        await this.j.hover(this.page.locator('[role=treeitem][aria-level="1"]').filter({ visible: true }).first());
-        await this.j.click(this.page.getByLabel('Open View').or(this.page.getByRole('button', { name: 'Open Overview' }))
-            .filter({ visible: true }).first());
-        return this.view(/Add Artifact/i, 60_000);
+        const already = await this.view(/Add Artifact/i, 3000).catch(() => undefined);
+        if (already) {
+            return already;
+        }
+        await new ProjectExplorer(this.page).goToOverview();
+        return this.view(/Add Artifact/i, 60000);
     }
 
     // The project tree's row for an item, or undefined when this build's tree does not list it.
     async treeRow(item: string): Promise<Locator | undefined> {
-        const escaped = item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const row = this.page.getByRole('treeitem', { name: new RegExp(`^${escaped}(\\b|$)`) }).first();
-        const expand = async () => {
-            // The item sits in a collapsed group ("expand Workflow Activities"): open collapsed groups until it shows.
-            const collapsed = this.page.locator('[role=treeitem][aria-expanded=false]').filter({ visible: true });
-            for (let i = 0; i < 12 && !await row.isVisible().catch(() => false) && await collapsed.count() > 0; i++) {
-                await this.j.click(collapsed.first());
-                await this.page.waitForTimeout(400);
-            }
-        };
-        await expand();
-        for (let i = 0; i < 2 && !await row.isVisible().catch(() => false); i++) {
-            // The tree can lag behind an artifact the designer just added; its Refresh action catches it up.
-            await this.page.getByRole('button', { name: /^Refresh/ }).filter({ visible: true }).first().click().catch(() => undefined);
-            await this.page.waitForTimeout(3_000);
-            await expand();
-        }
-        return await row.isVisible().catch(() => false) ? row : undefined;
+        return new ProjectExplorer(this.page).findItemExpanding(item);
     }
 
     // Opens an item from the project tree. Trees without the workflow groups (wso2-integrator 1.0.x) do not list
@@ -362,16 +340,16 @@ export class Integrator {
         const row = await this.treeRow(item);
         if (row) {
             await this.j.click(row);
-            await this.j.beat(1_200, 800);
+            await this.page.waitForTimeout(800);
             return;
         }
         console.log(`  ℹ️  '${item}' is not in this build's project tree; opening it from the integration overview`);
         const card = (await this.overview()).getByText(item, { exact: true }).filter({ visible: true }).first();
-        await card.waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {
+        await card.waitFor({ state: 'visible', timeout: 30000 }).catch(() => {
             throw new Error(`Step ${this.j.stepId}: '${item}' is neither in the project tree nor on the integration overview`);
         });
         await this.j.click(card);
-        await this.j.beat(1_200, 800);
+        await this.page.waitForTimeout(800);
     }
 
     // Checks a form against the page's field table, expanding Advanced Configurations for fields the page puts there;
@@ -402,7 +380,7 @@ export class Integrator {
                 const expand = panel.getByText(/^\s*Expand\s*$/).filter({ visible: true }).first();
                 if (await expand.isVisible().catch(() => false)) {
                     await this.j.click(expand);
-                    await this.j.beat(500, 500);
+                    await this.page.waitForTimeout(500);
                 }
                 expanded = true;
             }
@@ -430,15 +408,20 @@ export class Integrator {
     // Closes a helper pane or dropdown that covers the form.
     async dismiss(): Promise<void> {
         await this.page.keyboard.press('Escape');
-        await this.j.beat(300, 200);
+        await this.page.waitForTimeout(200);
     }
 
     // ------------------------------------------------------------------ projects and artifacts
 
-    // Opens an artifact's creation form from the Artifacts page, checking it sits under the section the page names.
-    async artifact(frame: FrameLocator, section: string, artifact: string): Promise<FrameLocator> {
-        const card = frame.getByRole('button', { name: new RegExp(`${artifact}$`) }).first();
-        await card.waitFor({ state: 'visible', timeout: 30_000 });
+    // Opens an artifact's creation form from the Artifacts page by its card's test id, checking that the card is named
+    // and placed as the page says.
+    async artifact(frame: FrameLocator, section: string, artifact: string, testId: string): Promise<FrameLocator> {
+        const card = frame.locator(`#${testId}`);
+        await card.waitFor({ state: 'visible', timeout: 30000 });
+        const title = (await card.innerText()).trim();
+        if (!title.toLowerCase().includes(artifact.toLowerCase())) {
+            await this.j.finding({ kind: 'label', says: `**${artifact}**`, actual: `The card reads **${title.split('\n')[0]}**` });
+        }
         const actualSection = await card.evaluate((el) => {
             let node: Element | null = el;
             while (node) {
@@ -462,7 +445,7 @@ export class Integrator {
                 suggestion: `Say "under **${actualSection}**, click **${artifact}**".`,
             });
         }
-        await this.j.click(card);
+        await clickArtifactCard(frame, testId);
         return this.view();
     }
 
@@ -497,7 +480,7 @@ export class Integrator {
                 const rows = frame.getByTestId('identifier-field');
                 const before = await rows.count();
                 const add = frame.getByTestId('add-field-button').getByRole('button').first();
-                const deadline = Date.now() + 30_000;
+                const deadline = Date.now() + 30000;
                 while (await rows.count() <= before) {
                     if (Date.now() > deadline) {
                         throw new Error('the + next to Fields never added a row');
@@ -511,7 +494,7 @@ export class Integrator {
         }
         await this.j.step(`${step}.f`, 'Click **Save**.', async () => {
             await this.j.click(modal.getByRole('button', { name: 'Save' }).last());
-            await frame.getByRole('heading', { name: 'Create New Type' }).waitFor({ state: 'hidden', timeout: 60_000 });
+            await frame.getByRole('heading', { name: 'Create New Type' }).waitFor({ state: 'hidden', timeout: 60000 });
         });
     }
 
@@ -535,134 +518,33 @@ export class Integrator {
 
     // ------------------------------------------------------------------ the flow diagram
 
-    // Clicks the + on the edge leaving a node ("click + below the wait"); the button only shows while its edge is
-    // hovered. nth picks among several outgoing edges, left to right.
+    // Clicks the + below a node ("click + below the wait") and waits for the node panel.
     async plusBelow(frame: FrameLocator, nodeText: string | RegExp, nth = 0): Promise<void> {
-        const matches = (typeof nodeText === 'string' ? frame.getByText(nodeText, { exact: true }) : frame.getByText(nodeText))
-            .filter({ visible: true });
-        await matches.last().waitFor({ state: 'visible', timeout: 60_000 });
-        // An open side panel can list the same name (the Activities panel's cards); the node is on the canvas.
-        let node = matches.last();
-        for (const candidate of (await matches.all()).reverse()) {
-            if (await candidate.evaluate((e) => !e.closest('[data-testid="side-panel"]')).catch(() => false)) {
-                node = candidate;
-                break;
-            }
-        }
-        const nodeBox = await node.boundingBox();
-        if (!nodeBox) {
-            throw new Error(`node '${nodeText}' has no position`);
-        }
-        // In some diagrams (a resource, inside a do block) the + under a node belongs to an empty node
-        // drawn there, not to the edge.
-        const centre = nodeBox.x + nodeBox.width / 2;
-        for (const button of await frame.locator('[data-testid^="empty-node-add-button"]').all()) {
-            const b = await button.boundingBox();
-            if (b && Math.abs(b.x + b.width / 2 - centre) < 60 && b.y > nodeBox.y && b.y < nodeBox.y + nodeBox.height + 160) {
-                await this.j.click(button);
-                const panel = (await this.view()).getByTestId('side-panel').filter({ visible: true }).last();
-                if (!(await panel.waitFor({ state: 'visible', timeout: 1_500 }).then(() => true).catch(() => false))) {
-                    await button.dispatchEvent('click');
-                }
-                await this.panel();
-                return;
-            }
-        }
-        const edges = frame.locator('[data-testid^="diagram-link-"]');
-        const seen: string[] = [];
-        const candidates: Array<{ id: string; top: number; left: number; el: Locator }> = [];
-        const textBottom = nodeBox.y + nodeBox.height;
-        for (const edge of await edges.all()) {
-            const box = await edge.boundingBox();
-            const id = (await edge.getAttribute('data-testid')) ?? '';
-            seen.push(`${id}@${box ? `${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}x${Math.round(box.height)}` : 'none'}`);
-            // An edge leaving the node starts at or a little above the label (some paths begin inside the
-            // node) and runs on below it. Edges into the node end above the label; side arrows stay level.
-            if (box && box.y >= nodeBox.y - 40 && box.y <= textBottom + 90 && box.y + box.height > textBottom + 15) {
-                candidates.push({ id, top: box.y, left: box.x, el: edge });
-            }
-        }
-        // The topmost such edge is the one leaving this node; for several at the same height, left to right.
-        candidates.sort((a, b) => (Math.abs(a.top - b.top) < 5 ? a.left - b.left : a.top - b.top));
-        const edge = candidates[nth];
-        if (!edge) {
-            throw new Error(`no edge leaves '${nodeText}' (label at y ${Math.round(nodeBox.y)}..${Math.round(textBottom)}; edges ${seen.join(', ')})`);
-        }
-        await this.clickEdgePlus(frame, edge.el, edge.id);
-        console.log(`plusBelow(${nodeText}) -> ${edge.id}`);
+        await new Diagram(this.page, frame).clickAddButtonBelow(nodeText, nth);
         await this.panel();
-    }
-
-    // Clicks the + on an edge: drawn at the edge's middle, and only while the pointer is over the edge.
-    private async clickEdgePlus(frame: FrameLocator, edgeLocator: Locator, edgeId: string): Promise<void> {
-        // Test ids repeat across edges (several are `diagram-link-undefined`), so the edge measured is the
-        // one used, and its button is the visible one of that id nearest to it.
-        const buttonId = edgeId.replace('diagram-link-', 'link-add-button-');
-        // The button drawn with this edge: the nearest one of that id in the edge's own subtree of the DOM.
-        const button = edgeLocator.locator(`xpath=ancestor::*[.//*[@data-testid="${buttonId}"]][1]`)
-            .locator(`[data-testid="${buttonId}"]`).first();
-        const box = await edgeLocator.boundingBox();
-        const panelOpen = async () => (await this.view()).getByTestId('side-panel').filter({ visible: true }).count().then((n) => n > 0).catch(() => false);
-        if (box) {
-            // Hovered by position: an edge path can measure fine yet count as invisible to Playwright.
-            await this.j.pointTo(box.x + box.width / 2, box.y + box.height / 2);
-            await this.page.waitForTimeout(400);
-        }
-        if (await button.isVisible().catch(() => false)) {
-            await this.j.click(button);
-        } else if (box) {
-            await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-        }
-        for (let attempt = 0; attempt < 3 && !(await panelOpen()); attempt++) {
-            await this.page.waitForTimeout(800);
-            if (!(await panelOpen())) {
-                await button.dispatchEvent('click').catch(() => undefined);
-            }
-        }
     }
 
     // Clicks the + on an If branch the page names by label ("the + on the **Else** path"); index is the branch's
     // position left to right, -1 for Else.
     async plusOnBranch(frame: FrameLocator, branchLabel: string, index: number): Promise<void> {
-        const buttons: Array<{ el: Locator; x: number; y: number }> = [];
-        const deadline = Date.now() + 30_000;
-        while (buttons.length === 0 && Date.now() < deadline) {
-            for (const el of await frame.locator('[data-testid^="empty-node-add-button"]').all()) {
-                const b = await el.boundingBox();
-                if (b) {
-                    buttons.push({ el, x: b.x, y: b.y });
-                }
-            }
-            if (buttons.length === 0) {
-                await this.page.waitForTimeout(500);
-            }
-        }
-        // The lowest row of empty nodes belongs to the If just added.
-        const lowest = Math.max(...buttons.map((b) => b.y));
-        const row = buttons.filter((b) => Math.abs(b.y - lowest) < 10).sort((a, b) => a.x - b.x);
-        const target = row[index < 0 ? row.length + index : index];
-        if (!target) {
-            throw new Error(`no + on the '${branchLabel}' branch (found ${row.length})`);
-        }
-        await this.j.hover(target.el);
-        await this.j.click(target.el);
-        // A static circle is drawn over the button; when it takes the pointer click, the button's own
-        // handler is reached with a dispatched click.
-        const panel = (await this.view()).getByTestId('side-panel').filter({ visible: true }).last();
-        if (!(await panel.waitFor({ state: 'visible', timeout: 1_500 }).then(() => true).catch(() => false))) {
-            await target.el.dispatchEvent('click');
-        }
+        console.log(`  + on the '${branchLabel}' branch`);
+        await new Diagram(this.page, frame).clickAddButtonOnBranch(index);
         await this.panel();
     }
 
-    // Follows a node-palette path such as Workflow > Steps > Call Activity. A group is clicked only when the next
+    // Follows a node-palette path such as Workflow > Steps > Call Activity. A group is opened only when the next
     // entry is not already showing, since clicking an open group closes it.
     async palette(path: Names[]): Promise<void> {
         const panel = await this.panel();
-        const shows = async (names: Names) => {
+        const sidePanel = new SidePanel(await this.view(), this.page);
+        await sidePanel.init();
+        const productNames = (names: Names) => {
             const n = asNames(names);
-            for (const name of [n.doc, ...(n.ui === undefined ? [] : Array.isArray(n.ui) ? n.ui : [n.ui])]) {
-                if (await panel.getByText(label(name)).last().isVisible().catch(() => false)) {
+            return [n.doc, ...(n.ui === undefined ? [] : Array.isArray(n.ui) ? n.ui : [n.ui])];
+        };
+        const shows = async (names: Names) => {
+            for (const name of productNames(names)) {
+                if (await panel.getByText(name, { exact: true }).last().isVisible().catch(() => false)) {
                     return true;
                 }
             }
@@ -673,13 +555,20 @@ export class Integrator {
             if (next !== undefined && await shows(next)) {
                 continue;
             }
-            const target = await this.text(panel, part);
-            await this.j.click(target);
-            await this.j.beat(500, 500);
-            if (next !== undefined && !await shows(next)) {
+            // The name on screen, recording a finding when it is not the page's.
+            const { name } = await this.j.resolveNamed(asNames(part), (n) => panel.getByText(label(n)).filter({ visible: true }).last());
+            if (next === undefined) {
+                await sidePanel.clickNode(name);
+                // The panel swaps to the node's list or form; reading it at once still sees the palette.
+                await this.page.waitForTimeout(500);
+                return;
+            }
+            await sidePanel.expandSection(name);
+            await this.page.waitForTimeout(500);
+            if (!await shows(next)) {
                 // That click closed a group that was open but scrolled out of view; open it again.
-                await this.j.click(target);
-                await this.j.beat(500, 500);
+                await sidePanel.expandSection(name);
+                await this.page.waitForTimeout(500);
             }
         }
     }
@@ -689,7 +578,7 @@ export class Integrator {
     async saveForm(names: Names = 'Save'): Promise<void> {
         const panel = await this.panel();
         // The button reads "Validating..." while the form checks its fields; its name returns once that ends.
-        await panel.getByRole('button', { name: /Validating/ }).waitFor({ state: 'hidden', timeout: 60_000 }).catch(() => undefined);
+        await panel.getByRole('button', { name: /Validating/ }).waitFor({ state: 'hidden', timeout: 60000 }).catch(() => undefined);
         const save = await this.button(panel, names);
         const enabled = async () => !(await save.isDisabled().catch(() => true))
             && (await save.getAttribute('disabled').catch(() => null)) === null;
@@ -697,16 +586,16 @@ export class Integrator {
             await this.page.waitForTimeout(500);
         }
         await this.j.click(save);
-        let closed = await panel.waitFor({ state: 'hidden', timeout: 20_000 }).then(() => true).catch(() => false);
+        let closed = await panel.waitFor({ state: 'hidden', timeout: 20000 }).then(() => true).catch(() => false);
         if (!closed && await enabled()) {
             await this.j.click(save);
-            closed = await panel.waitFor({ state: 'hidden', timeout: 70_000 }).then(() => true).catch(() => false);
+            closed = await panel.waitFor({ state: 'hidden', timeout: 70000 }).then(() => true).catch(() => false);
         }
         if (!closed) {
             // A form that stays open was refused (a diagnostic, an empty required field): fail on the step.
             const problems = await panel.locator('[class*=error], [class*=diagnostic]').allInnerTexts().catch(() => []);
             throw new Error(`The form did not close after Save${problems.length ? `: ${problems.join(' | ').slice(0, 300)}` : ''}`);
         }
-        await this.j.beat(800, 600);
+        await this.page.waitForTimeout(600);
     }
 }

@@ -38,15 +38,6 @@ export function findFile(dir: string, name: string): string | undefined {
     return undefined;
 }
 
-// Reads a source file of the project under test by file name; the harness opens it at `newProjectPath`.
-export function projectSource(_j?: Journey, _projectFolder?: string): (file: string) => string {
-    const dir = newProjectPath;
-    return (file: string) => {
-        const found = fs.existsSync(dir) ? findFile(dir, file) : undefined;
-        return found ? fs.readFileSync(found, 'utf-8') : '';
-    };
-}
-
 export async function httpPost(url: string, body: unknown): Promise<{ status: number; body: string }> {
     const response = await fetch(url, {
         method: 'POST',
@@ -66,7 +57,7 @@ export async function waitForTerminal(j: Journey, pattern: RegExp, timeoutMs: nu
         if (pattern.test(text)) {
             return text;
         }
-        await j.page.waitForTimeout(1_000);
+        await j.page.waitForTimeout(1000);
     }
     throw new Error(`The terminal never showed ${pattern} in ${timeoutMs} ms. Last lines:\n${text.split('\n').slice(-15).join('\n')}`);
 }
@@ -83,7 +74,7 @@ export async function portFree(port: number): Promise<boolean> {
 }
 
 // "Running executable" prints before the listener binds; wait until the port takes a connection.
-export async function waitForPort(port: number, timeoutMs = 120_000): Promise<void> {
+export async function waitForPort(port: number, timeoutMs = 120000): Promise<void> {
     const net = await import('net');
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {

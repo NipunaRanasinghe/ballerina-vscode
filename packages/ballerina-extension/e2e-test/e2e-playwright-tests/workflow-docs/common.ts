@@ -22,6 +22,7 @@ import { FrameLocator, Locator } from '@playwright/test';
 import { newProjectPath } from '../utils/helpers';
 import { DocJourney } from './doc-journey';
 import { escapeRegExp, Integrator } from './integrator';
+import { findFile } from './project';
 
 // The articles start inside a project, so they open a template: the order project the quickstart builds plus
 // the workflows and activities the articles' examples use, or the claim-handling agent project.
@@ -35,31 +36,36 @@ export const WORKFLOW_ARTICLES = 'develop-and-test/integration-artifacts/workflo
 export const AGENT_ARTICLES = 'develop-and-test/integration-artifacts/workflow/durable-agentic-workflow';
 export const QUICKSTARTS = 'get-started/quickstarts';
 
-// All of the project's source, read fresh: the designer may put a new artifact in a file of its own.
-export function projectSources(): () => string {
-    return () => fs.readdirSync(newProjectPath).filter((f) => f.endsWith('.bal'))
-        .map((f) => fs.readFileSync(path.join(newProjectPath, f), 'utf-8')).join('\n');
+// The project's source, read fresh: one file found by name, or all of its top-level .bal files, since the designer may
+// put a new artifact in a file of its own. Snippets are matched rather than whole files, so this is not
+// verifyGeneratedSource.
+export function projectSources(): (file?: string) => string {
+    return (file?: string) => {
+        if (file !== undefined) {
+            const found = fs.existsSync(newProjectPath) ? findFile(newProjectPath, file) : undefined;
+            return found ? fs.readFileSync(found, 'utf-8') : '';
+        }
+        return fs.readdirSync(newProjectPath).filter((f) => f.endsWith('.bal'))
+            .map((f) => fs.readFileSync(path.join(newProjectPath, f), 'utf-8')).join('\n');
+    };
 }
 
 // Waits for the project to load, then opens one of its artifacts from the sidebar.
 export async function openArtifact(j: DocJourney, ui: Integrator, project: string, name: string,
     expect: string | RegExp = /Start/): Promise<FrameLocator> {
-    await j.page.getByRole('treeitem', { name: new RegExp(`^${escapeRegExp(project)}`, 'i') }).first().waitFor({ state: 'visible', timeout: 180_000 });
+    await j.page.getByRole('treeitem', { name: new RegExp(`^${escapeRegExp(project)}`, 'i') }).first().waitFor({ state: 'visible', timeout: 180000 });
     await ui.sidebar(name);
-    const opened = await ui.view(expect, 20_000).catch(() => undefined);
+    const opened = await ui.view(expect, 20000).catch(() => undefined);
     // Clicking the row that is already selected does not reopen it; the breadcrumb does.
     return opened ?? ui.crumb(name, expect);
 }
 
-// Picks the agent on a form's Durable Agentic Workflow field; a form that already shows it needs no pick.
+// Picks the agent on a form's Durable Agentic Workflow field; a form that already shows it needs no pick. A form
+// without the field is a product regression, so the step fails.
 export async function selectAgent(j: DocJourney, ui: Integrator, panel: Locator, view: FrameLocator,
     agent = 'claimAgent'): Promise<void> {
     const picked = await ui.select(panel, view, 'Durable Agentic Workflow', agent).then(() => true).catch(() => false);
     if (!picked && !await panel.getByText(agent, { exact: true }).first().isVisible().catch(() => false)) {
-        await j.finding({
-            kind: 'missing',
-            says: `Set **Durable Agentic Workflow** to \`${agent}\``,
-            actual: `The form has no **Durable Agentic Workflow** field offering \`${agent}\``,
-        });
+        throw new Error(`Step ${j.stepId}: the form has no Durable Agentic Workflow field offering '${agent}'`);
     }
 }
