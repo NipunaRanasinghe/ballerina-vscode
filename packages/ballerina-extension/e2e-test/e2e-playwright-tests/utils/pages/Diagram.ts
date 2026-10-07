@@ -110,6 +110,7 @@ export class Diagram {
                 if (!await this.sidePanelOpens(1500)) {
                     await button.dispatchEvent('click');
                 }
+                await this.expectSidePanel(`the + under '${nodeText}'`);
                 return;
             }
         }
@@ -170,6 +171,7 @@ export class Diagram {
         if (!await this.sidePanelOpens(1500)) {
             await target.el.dispatchEvent('click');
         }
+        await this.expectSidePanel(`the + on branch ${index}`);
     }
 
     // The + on an edge is drawn at its middle and shows only while the pointer is over the edge.
@@ -197,6 +199,14 @@ export class Diagram {
         }
         for (let attempt = 0; attempt < 3 && !await this.sidePanelOpens(800); attempt++) {
             await button.dispatchEvent('click').catch(() => undefined);
+        }
+        await this.expectSidePanel(`the + on ${edgeId}`);
+    }
+
+    // Fails at the click that did not open the node panel, rather than at the next step.
+    private async expectSidePanel(what: string): Promise<void> {
+        if (!await this.sidePanelOpens(5000)) {
+            throw new Error(`${what} did not open the side panel`);
         }
     }
 
