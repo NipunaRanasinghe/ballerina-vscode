@@ -46,8 +46,14 @@ export default function createTests() {
                     await ui.plusBelow(view, 'reserveInventory');
                     await ui.palette(['Workflow', 'Steps', 'Call Activity']);
                     const list = await ui.panel('Current Integration');
-                    await j.clickUntil(list.getByTestId('node-list-action-onAddFunction').first(),
-                        (await ui.view()).getByText(/Activity Name/).filter({ visible: true }));
+                    const add = list.getByTestId('node-list-action-onAddFunction').first();
+                    const name = (await ui.view()).getByRole('textbox', { name: /Activity Name/ }).first();
+                    await j.click(add);
+                    // The form can take a while to open; a second click on the list would close it again.
+                    if (!await name.waitFor({ state: 'visible', timeout: 30000 }).then(() => true, () => false)
+                        && await add.isVisible().catch(() => false)) {
+                        await add.dispatchEvent('click');
+                    }
                 }
                 view = await ui.view(/Activity Name/i, 60000);
                 const form = view.locator('body');
