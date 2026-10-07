@@ -587,9 +587,12 @@ export class Integrator {
         }
         await this.j.click(save);
         let closed = await panel.waitFor({ state: 'hidden', timeout: 20000 }).then(() => true).catch(() => false);
-        if (!closed && await enabled()) {
-            await this.j.click(save);
-            closed = await panel.waitFor({ state: 'hidden', timeout: 70000 }).then(() => true).catch(() => false);
+        if (!closed) {
+            // A press that landed before Save was live leaves it enabled; mid-save the form re-renders without it.
+            if (await save.isVisible().catch(() => false) && await enabled()) {
+                await this.j.click(save);
+            }
+            closed = await panel.waitFor({ state: 'hidden', timeout: 90000 }).then(() => true).catch(() => false);
         }
         if (!closed) {
             // A form that stays open was refused (a diagnostic, an empty required field): fail on the step.
