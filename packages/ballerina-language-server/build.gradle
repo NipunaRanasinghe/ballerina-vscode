@@ -129,7 +129,6 @@ subprojects {
         ballerinaStdLibs "io.ballerina.stdlib:task-ballerina:${stdlibTaskVersion}"
         ballerinaStdLibs "io.ballerina.stdlib:protobuf-ballerina:${stdlibProtobufVersion}"
         ballerinaStdLibs "io.ballerina.stdlib:soap-ballerina:${stdlibSoapVersion}"
-        ballerinaStdLibs "io.ballerina.stdlib:yaml-ballerina:${stdlibYamlVersion}"
         ballerinaStdLibs "io.ballerina.lib:workflow-ballerina:${stdlibWorkflowVersion}"
 
         /* Ballerina Persist Tool */

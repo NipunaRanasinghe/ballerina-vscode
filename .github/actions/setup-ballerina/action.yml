@@ -4,7 +4,9 @@ inputs:
   distributionVersion:
     description: >-
       Version handed to the installer, when it differs from ballerinaLangVersion (the Maven
-      coordinate). 'nightly' installs the latest CI artifact instead of the CDN.
+      coordinate). 'nightly' installs the latest CI artifact instead of the CDN. No caller sets
+      it once a release is on dist.ballerina.io; it is kept for pre-GA cycles, when CI has to
+      build against a distribution that is not published yet.
     required: false
     default: ''
   gradlePropertiesRef:
