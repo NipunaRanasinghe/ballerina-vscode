@@ -352,6 +352,21 @@ export class Integrator {
         await this.page.waitForTimeout(800);
     }
 
+    // Types a value and waits until the form accepts it. The field is validated after every edit, and the result for
+    // the cleared field can land after the typed value's, leaving a stale error and a disabled submit; retype then.
+    async fillAccepted(scope: FrameLocator | Locator, names: Names, value: string, submit: Locator): Promise<void> {
+        for (let attempt = 0; attempt < 4; attempt++) {
+            await this.fill(scope, names, value);
+            for (let i = 0; i < 10; i++) {
+                if (await this.enabled(submit)) {
+                    return;
+                }
+                await this.page.waitForTimeout(500);
+            }
+        }
+        throw new Error(`the form did not accept ${value} as ${asNames(names).doc}`);
+    }
+
     // Checks a form against the page's field table, expanding Advanced Configurations for fields the page puts there;
     // missing fields become findings.
     async expectFields(panel: Locator, fields: Array<{ label: string; advanced?: boolean }>): Promise<string[]> {
@@ -580,16 +595,14 @@ export class Integrator {
         // The button reads "Validating..." while the form checks its fields; its name returns once that ends.
         await panel.getByRole('button', { name: /Validating/ }).waitFor({ state: 'hidden', timeout: 60000 }).catch(() => undefined);
         const save = await this.button(panel, names);
-        const enabled = async () => !(await save.isDisabled().catch(() => true))
-            && (await save.getAttribute('disabled').catch(() => null)) === null;
-        for (let i = 0; i < 60 && !(await enabled()); i++) {
+        for (let i = 0; i < 60 && !(await this.enabled(save)); i++) {
             await this.page.waitForTimeout(500);
         }
         await this.j.click(save);
         let closed = await panel.waitFor({ state: 'hidden', timeout: 20000 }).then(() => true).catch(() => false);
         if (!closed) {
             // A press that landed before Save was live leaves it enabled; mid-save the form re-renders without it.
-            if (await save.isVisible().catch(() => false) && await enabled()) {
+            if (await save.isVisible().catch(() => false) && await this.enabled(save)) {
                 await this.j.click(save);
             }
             closed = await panel.waitFor({ state: 'hidden', timeout: 90000 }).then(() => true).catch(() => false);
@@ -600,5 +613,10 @@ export class Integrator {
             throw new Error(`The form did not close after Save${problems.length ? `: ${problems.join(' | ').slice(0, 300)}` : ''}`);
         }
         await this.page.waitForTimeout(600);
+    }
+
+    private async enabled(button: Locator): Promise<boolean> {
+        return !(await button.isDisabled().catch(() => true))
+            && (await button.getAttribute('disabled').catch(() => null)) === null;
     }
 }

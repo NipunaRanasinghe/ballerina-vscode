@@ -67,8 +67,8 @@ export default function createTests() {
                         suggestion: `Call it the **${title}** form.`,
                     });
                 }
-                await ui.fill(view, 'Activity Name', 'chargeCard');
                 const create = await ui.button(view, { doc: 'Create', ui: ['Save'] });
+                await ui.fillAccepted(view, 'Activity Name', 'chargeCard', create);
                 await j.click(create);
                 await expect.poll(source, { timeout: 60000 }).toMatch(/function chargeCard\(/);
             });
@@ -103,7 +103,7 @@ export default function createTests() {
                     { label: 'Activity Name' }, { label: 'Description' }, { label: 'Choose what the activity takes as input' },
                     { label: 'Connection As Parameter' }, { label: 'Return Type' },
                 ]);
-                await ui.fill(view, 'Activity Name', 'billingGet');
+                await ui.fillAccepted(view, 'Activity Name', 'billingGet', await ui.button(view, 'Create Activity'));
             });
             await j.step('connection.6', 'Click **Create Activity**.', async () => {
                 await ui.clickButton(view, 'Create Activity');
