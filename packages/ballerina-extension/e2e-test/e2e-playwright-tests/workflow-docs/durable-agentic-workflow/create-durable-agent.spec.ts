@@ -67,17 +67,21 @@ export default function createTests() {
                     });
                 }
             });
-            view = await openArtifact(j, ui, 'ClaimHandler', 'claimAgent', /claimAgent/);
+            // The agent this journey created, so the Configure Agent check cannot pass on the template's agent.
+            view = await openArtifact(j, ui, 'ClaimHandler', 'travelAgent', /travelAgent/);
             await j.step('configure', 'Click the agent node to open the **Configure Agent** form: **Role**, **Instructions**, **Query**, **Maximum Iterations**.', async () => {
                 // The node's test id sits on a wrapper wider than the box; its centre can be empty canvas.
                 const node = view.getByTestId('durable-agent-run-node').first();
-                await j.clickUntil(node.getByText(/^(claimAgent|travelAgent)$/).first(),
+                await j.clickUntil(node.getByText('travelAgent', { exact: true }).first(),
                     view.getByText('Configure Agent').filter({ visible: true }));
                 const panel = await ui.panel(/Configure Agent/);
                 await ui.expectFields(panel, [{ label: 'Role' }, { label: 'Instructions' }, { label: 'Query' }, { label: 'Maximum Iterations' }]);
                 await ui.dismiss();
                 await j.click((await ui.view()).getByTestId('close-panel-btn').first()).catch(() => undefined);
             });
+            // The remaining checks open registration forms from entries the new agent does not have yet (`payClaim`);
+            // the template's claimAgent carries them.
+            view = await openArtifact(j, ui, 'ClaimHandler', 'claimAgent', /claimAgent/);
             await j.step('activities', 'Click **+** on the activity anchor, click `payClaim`: **Retry Policy**; under **Advanced Configurations** **Activity Name**, **Activity Description**, **Requires Approval**, **Reviewer Roles**.', async () => {
                 await j.click(view.getByTestId('durable-agent-affordance-activity').first());
                 await ui.clickText(await ui.panel('payClaim'), 'payClaim');
