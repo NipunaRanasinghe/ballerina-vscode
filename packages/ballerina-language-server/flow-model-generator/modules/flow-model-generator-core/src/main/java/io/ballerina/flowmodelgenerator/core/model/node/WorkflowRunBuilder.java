@@ -25,6 +25,7 @@ import io.ballerina.compiler.api.symbols.Symbol;
 import io.ballerina.compiler.api.symbols.SymbolKind;
 import io.ballerina.compiler.api.symbols.TypeSymbol;
 import io.ballerina.compiler.syntax.tree.SyntaxKind;
+import io.ballerina.flowmodelgenerator.core.UserFacingException;
 import io.ballerina.flowmodelgenerator.core.model.Codedata;
 import io.ballerina.flowmodelgenerator.core.model.FlowNode;
 import io.ballerina.flowmodelgenerator.core.model.NodeBuilder;
@@ -205,7 +206,7 @@ public class WorkflowRunBuilder extends NodeBuilder {
                 .filter(value -> !value.isBlank())
                 .orElseGet(() -> flowNode.codedata().symbol());
         if (workflowFunction == null) {
-            throw new IllegalStateException("Workflow symbol is required for WORKFLOW_RUN");
+            throw new UserFacingException("Select a workflow in the " + WORKFLOW_NAME_LABEL + " field");
         }
 
         // Get input property

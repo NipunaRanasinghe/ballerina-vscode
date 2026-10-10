@@ -53,7 +53,9 @@ public class NodeTemplateGenerator {
      * Maps a function search pick of {@code workflow:run} or {@code workflow:sendData} to the Run Workflow or Send
      * Data node. Their first parameter is a bare {@code function}, which the generic function call form cannot fill;
      * the workflow nodes offer the project's workflows in a dropdown instead. The symbol is dropped because those
-     * nodes read it as the name of the selected workflow.
+     * nodes read it as the name of the selected workflow. {@code packageName} and {@code lineRange} are not carried
+     * either: neither builder reads them, both import {@code ballerina/workflow} by constant, and the insert position
+     * comes from the template context.
      */
     private static Codedata toWorkflowCodedata(Codedata codedata) {
         if (codedata.node() != NodeKind.FUNCTION_CALL || !WORKFLOW_ORG.equals(codedata.org())

@@ -165,6 +165,7 @@ public abstract class CallBuilder extends NodeBuilder {
                         .stepOut()
                     .codedata()
                         .kind(ParameterData.Kind.REQUIRED.name())
+                        .originalName(RUN_PROCESS_FUNCTION_PARAM)
                         .stepOut()
                     .value("")
                     .editable(true)

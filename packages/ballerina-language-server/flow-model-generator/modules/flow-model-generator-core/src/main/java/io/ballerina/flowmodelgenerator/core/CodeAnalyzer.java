@@ -677,11 +677,16 @@ public class CodeAnalyzer extends NodeVisitor {
     // The workflow dropdown every form that picks a workflow carries, with the package's workflow
     // functions as its options. Re-adding at an existing key keeps that key's position.
     private void addWorkflowSelectProperty(String key, String label, String doc, String value) {
+        addWorkflowSelectProperty(key, label, doc, value, null);
+    }
+
+    // As above, for a dropdown that stands in for a signature parameter: originalName keeps that parameter's name.
+    private void addWorkflowSelectProperty(String key, String label, String doc, String value, String originalName) {
         nodeBuilder.properties().custom()
                 .metadata().label(label).description(doc).stepOut()
                 .type().fieldType(Property.ValueType.SINGLE_SELECT)
                     .options(workflowOptions()).selected(true).stepOut()
-                .codedata().kind(ParameterData.Kind.REQUIRED.name()).stepOut()
+                .codedata().kind(ParameterData.Kind.REQUIRED.name()).originalName(originalName).stepOut()
                 .value(value)
                 .editable(true)
                 .stepOut()
@@ -4920,7 +4925,7 @@ public class CodeAnalyzer extends NodeVisitor {
             String workflow = argumentExpression(functionCallExpressionNode.arguments(), 0,
                     RUN_PROCESS_FUNCTION_PARAM).map(expression -> expression.toSourceCode().trim()).orElse("");
             addWorkflowSelectProperty(RUN_PROCESS_FUNCTION_PARAM, WorkflowRunBuilder.WORKFLOW_NAME_LABEL,
-                    WorkflowRunBuilder.WORKFLOW_NAME_DOC, workflow);
+                    WorkflowRunBuilder.WORKFLOW_NAME_DOC, workflow, RUN_PROCESS_FUNCTION_PARAM);
         }
     }
 

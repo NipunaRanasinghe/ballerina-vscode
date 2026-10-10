@@ -54,7 +54,8 @@
         "advanced": false,
         "hidden": false,
         "codedata": {
-          "kind": "REQUIRED"
+          "kind": "REQUIRED",
+          "originalName": "processFunction"
         }
       },
       "instanceId": {

@@ -112,6 +112,7 @@ public class ModelGeneratorTest extends AbstractLSTest {
         Assert.assertEquals(type.getAsJsonArray("options").get(0).getAsJsonObject().get("value").getAsString(),
                 "orderWorkflow");
         Assert.assertEquals(workflow.get("value").getAsString(), "orderWorkflow");
+        Assert.assertEquals(workflow.getAsJsonObject("codedata").get("originalName").getAsString(), "processFunction");
     }
 
     @Override
