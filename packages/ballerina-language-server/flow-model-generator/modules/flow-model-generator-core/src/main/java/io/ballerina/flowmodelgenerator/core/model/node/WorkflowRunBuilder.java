@@ -146,6 +146,22 @@ public class WorkflowRunBuilder extends NodeBuilder {
                     .editable(true)
                     .stepOut()
                     .addProperty(INPUT_KEY);
+        } else if (!durableAgent && (codedata == null || codedata.symbol() == null)) {
+            // No workflow chosen yet (opened from the function search). The form only retypes fields it
+            // already has, so the input starts hidden and is shown, typed, once a workflow is picked.
+            properties().custom()
+                    .metadata()
+                    .label(INPUT_LABEL)
+                    .description(INPUT_DOC)
+                    .stepOut()
+                    .type(Property.ValueType.EXPRESSION, "anydata")
+                    .codedata().dependentProperty(WORKFLOW_NAME_KEY).stepOut()
+                    .placeholder("")
+                    .value("")
+                    .editable(true)
+                    .hidden()
+                    .stepOut()
+                    .addProperty(INPUT_KEY);
         }
 
         // Variable property for result. Generate a unique default name so that adding
