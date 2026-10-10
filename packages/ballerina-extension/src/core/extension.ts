@@ -95,6 +95,8 @@ const PREV_EXTENSION_ID = 'ballerina.ballerina';
 /** Arguments to `ballerina.update-ballerina-visually`; omitted, it runs `bal dist update`. */
 export interface BallerinaUpdateOptions {
     version?: string;
+    /** False when the caller shows its own progress instead of the setup view. */
+    showSetup?: boolean;
 }
 
 /** `external` runs in a terminal or a detached UAC process, which report no outcome. */
@@ -764,7 +766,7 @@ export class BallerinaExtension {
      * With `version`, pulls that exact distribution instead of `bal dist update`, whose target isn't pinned.
      */
     async updateBallerinaVisually(options?: BallerinaUpdateOptions): Promise<BallerinaUpdateOutcome> {
-        if (!VisualizerWebview.jdkIncompatibility) { // the cannot-start screen shows its own progress
+        if (options?.showSetup !== false) {
             try {
                 await commands.executeCommand(SHARED_COMMANDS.SETUP_BALLERINA);
             } catch (error) {

@@ -283,19 +283,23 @@ export class VisualizerWebview {
         if (!blocked) {
             return;
         }
+        // Output sent before the re-rendered page attaches its listener is dropped; "Starting the update…" covers it.
         VisualizerWebview.showJdkIncompatibility({ ...blocked, update: { kind: "updating" } });
         let lastError: string | undefined;
         const progress = extension.ballerinaExtInstance.onDownloadProgress(({ message, percentage, step }) => {
             if (step === -1 && message.startsWith("Error: ")) {
-                lastError = message.slice("Error: ".length);
+                // The last line, as the log shows it; a chunk can hold \r redraws.
+                lastError = message.slice("Error: ".length).split(/[\r\n]/).map((line) => line.trim()).filter(Boolean).pop() || lastError;
             }
-            this._panel?.webview.postMessage({ command: "jdkIncompatibility.progress", message, percentage });
+            // The current panel, since one closed and reopened mid-update is a new instance.
+            VisualizerWebview.currentPanel?.getWebview()?.webview.postMessage({ command: "jdkIncompatibility.progress", message, percentage });
         });
         let outcome: BallerinaUpdateOutcome;
         try {
             // Pinned, since `bal dist update` may stay on the current update line.
             outcome = await vscode.commands.executeCommand<BallerinaUpdateOutcome>('ballerina.update-ballerina-visually', {
-                version: REQUIRED_BALLERINA_VERSION
+                version: REQUIRED_BALLERINA_VERSION,
+                showSetup: false
             });
         } catch (error) {
             console.error("[SETUP] Ballerina update failed", error);
@@ -386,7 +390,7 @@ export class VisualizerWebview {
                             <div class="update-log" id="update-log" aria-live="polite"></div>`
                             : `<p class="welcome-subtitle">
                                 ${process.platform === "win32"
-                                    ? "Approve the administrator prompt to continue. VS Code reloads when the update finishes."
+                                    ? "Approve the administrator prompt to continue, then reload VS Code once the update finishes."
                                     : "Enter your password in the Update Ballerina terminal to continue, then reload VS Code once the update finishes."}
                             </p>
                             <div class="action-row">
