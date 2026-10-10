@@ -314,11 +314,19 @@ jobs:
       - name: Set Up Ballerina
         uses: ./.github/actions/setup-ballerina
 
+      # Same key as .github/actions/ls-test: the cached home holds BIR tied to the installed toolchain.
+      - name: Fingerprint the Ballerina toolchain
+        id: bal-fingerprint
+        shell: pwsh
+        run: |
+          $version = (bal version | Select-Object -First 1) -replace '[^A-Za-z0-9.-]', '_'
+          "value=$version" >> $env:GITHUB_OUTPUT
+
       - name: Cache Ballerina dependencies
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: packages/ballerina-language-server/build/ballerina_dependencies
-          key: ${{ runner.os }}-ballerina-${{ matrix.branch }}-${{ hashFiles('packages/ballerina-language-server/build-config/ballerina_dependencies/**') }}
+          key: ${{ runner.os }}-ballerina-${{ matrix.branch }}-${{ steps.bal-fingerprint.outputs.value }}-${{ hashFiles('packages/ballerina-language-server/build-config/ballerina_dependencies/**', 'packages/ballerina-language-server/gradle.properties') }}
 
       - name: Build with Gradle
         shell: cmd
