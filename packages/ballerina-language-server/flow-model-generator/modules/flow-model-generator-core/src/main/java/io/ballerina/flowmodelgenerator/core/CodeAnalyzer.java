@@ -257,6 +257,7 @@ import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.RUN_DURABL
 import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.RUN_INPUT_PARAM;
 import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.RUN_METHOD_NAME;
 import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.RUN_PROCESS_FUNCTION_PARAM;
+import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.RUN_WITH_ID_METHOD_NAME;
 import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.SEND_DATA_METHOD_NAME;
 import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.SLEEP_DESCRIPTION;
 import static io.ballerina.flowmodelgenerator.core.Constants.Workflow.SLEEP_LABEL;
@@ -4914,6 +4915,12 @@ public class CodeAnalyzer extends NodeVisitor {
                     SendDataBuilder.WORKFLOW_NAME_KEY).map(expression -> expression.toSourceCode().trim()).orElse("");
             addWorkflowSelectProperty(SendDataBuilder.WORKFLOW_NAME_KEY, SendDataBuilder.WORKFLOW_NAME_LABEL,
                     SendDataBuilder.WORKFLOW_NAME_DOC, workflow);
+        } else if (isWorkflowOperation(functionSymbol, RUN_WITH_ID_METHOD_NAME)) {
+            // Stays a generic function call (no dedicated node); only its workflow argument becomes the dropdown.
+            String workflow = argumentExpression(functionCallExpressionNode.arguments(), 0,
+                    RUN_PROCESS_FUNCTION_PARAM).map(expression -> expression.toSourceCode().trim()).orElse("");
+            addWorkflowSelectProperty(RUN_PROCESS_FUNCTION_PARAM, WorkflowRunBuilder.WORKFLOW_NAME_LABEL,
+                    WorkflowRunBuilder.WORKFLOW_NAME_DOC, workflow);
         }
     }
 
