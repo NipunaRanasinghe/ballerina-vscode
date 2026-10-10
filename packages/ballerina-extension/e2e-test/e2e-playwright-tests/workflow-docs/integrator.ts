@@ -355,13 +355,35 @@ export class Integrator {
     // Types a value and waits until the form accepts it. The field is validated after every edit, and the result for
     // the cleared field can land after the typed value's, leaving a stale error and a disabled submit; retype then.
     async fillAccepted(scope: FrameLocator | Locator, names: Names, value: string, submit: Locator): Promise<void> {
-        for (let attempt = 0; attempt < 4; attempt++) {
+        const input = await this.field(scope, names);
+        const current = () => input.inputValue().catch(() => input.locator('input').inputValue()).catch(() => '');
+        // The form fills itself from a template that can arrive after it opens, overwriting anything typed
+        // before then; wait until the default has held for a second.
+        let last = await current();
+        for (let stable = 0, i = 0; stable < 4 && i < 60; i++) {
+            await this.page.waitForTimeout(250);
+            const now = await current();
+            stable = now === last && now !== '' ? stable + 1 : 0;
+            last = now;
+        }
+        for (let attempt = 0; attempt < 5; attempt++) {
             await this.fill(scope, names, value);
-            for (let i = 0; i < 10; i++) {
+            // Leaving the field commits it; the validation that follows is what enables the submit button.
+            await input.press('Tab').catch(() => undefined);
+            for (let i = 0; i < 20; i++) {
                 if (await this.enabled(submit)) {
                     return;
                 }
                 await this.page.waitForTimeout(500);
+            }
+            // A stale result for an earlier edit can stay on the field: an edit and its undo ask again.
+            await input.press('End').catch(() => undefined);
+            await input.type('x').catch(() => undefined);
+            await input.press('Backspace').catch(() => undefined);
+            await input.press('Tab').catch(() => undefined);
+            await this.page.waitForTimeout(1500);
+            if (await this.enabled(submit) && await current() === value) {
+                return;
             }
         }
         throw new Error(`the form did not accept ${value} as ${asNames(names).doc}`);
