@@ -70,10 +70,11 @@
           }
         ],
         "value": "",
+        "placeholder": "lookupBill",
         "optional": true,
         "editable": true,
         "advanced": false,
-        "hidden": false
+        "hidden": true
       },
       "description": {
         "metadata": {
@@ -88,20 +89,21 @@
           }
         ],
         "value": "",
+        "placeholder": "Look up a bill activity",
         "optional": true,
         "editable": true,
         "advanced": false,
-        "hidden": false
+        "hidden": true
       },
       "bindings.api": {
         "metadata": {
           "label": "Api",
-          "description": "Fixed at registration and hidden from the model: the agent cannot supply a 'ballerina/http:2.17.1:Client'"
+          "description": "Fixed at registration and hidden from the model: the agent cannot supply a 'ballerina/http:2.18.0:Client'"
         },
         "types": [
           {
             "fieldType": "SINGLE_SELECT",
-            "ballerinaType": "ballerina/http:2.17.1:Client",
+            "ballerinaType": "ballerina/http:2.18.0:Client",
             "options": [
               {
                 "label": "billingApi",
@@ -166,7 +168,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]?",
                   "selected": false
                 }
               ],
@@ -189,7 +191,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -212,7 +214,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -235,7 +237,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -258,7 +260,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -281,7 +283,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -398,7 +400,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]?",
             "selected": false
           }
         ],
@@ -421,7 +423,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]",
             "selected": false
           }
         ],
@@ -444,7 +446,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]",
             "selected": false
           }
         ],
@@ -467,7 +469,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]",
             "selected": false
           }
         ],
@@ -490,7 +492,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]",
             "selected": false
           }
         ],
@@ -513,7 +515,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]",
             "selected": false
           }
         ],
@@ -723,7 +725,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]?",
                   "selected": false
                 }
               ],
@@ -746,7 +748,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -769,7 +771,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -792,7 +794,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -815,7 +817,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -838,7 +840,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -999,7 +1001,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]?",
                   "selected": false
                 }
               ],
@@ -1022,7 +1024,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -1045,7 +1047,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -1068,7 +1070,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -1091,7 +1093,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -1114,7 +1116,7 @@
                 },
                 {
                   "fieldType": "EXPRESSION",
-                  "ballerinaType": "string|string[]",
+                  "ballerinaType": "string|[string, string...]",
                   "selected": false
                 }
               ],
@@ -1323,7 +1325,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]?",
             "selected": false
           }
         ],
@@ -1346,7 +1348,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]",
             "selected": false
           }
         ],
@@ -1369,7 +1371,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]",
             "selected": false
           }
         ],
@@ -1392,7 +1394,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]",
             "selected": false
           }
         ],
@@ -1415,7 +1417,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]",
             "selected": false
           }
         ],
@@ -1438,7 +1440,7 @@
           },
           {
             "fieldType": "EXPRESSION",
-            "ballerinaType": "string|string[]",
+            "ballerinaType": "string|[string, string...]",
             "selected": false
           }
         ],

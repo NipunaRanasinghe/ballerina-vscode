@@ -618,7 +618,32 @@ public class WorkflowUtil {
         if (source.length() >= 2 && source.startsWith("\"") && source.endsWith("\"")) {
             return unescapeLiteralBody(source.substring(1, source.length() - 1));
         }
+        // A template keeps its backslashes as written, so its body is the text itself.
+        String template = plainTemplateBody(source);
+        if (template != null) {
+            return template;
+        }
         return source.startsWith("'") ? source.substring(1) : source;
+    }
+
+    private static final String TEMPLATE_PREFIX = "string `";
+
+    /**
+     * The body of a {@code string `...`} template that interpolates nothing, which is how the
+     * designer's text fields write what was typed. One with an interpolation is an expression and
+     * reads as source.
+     *
+     * @param source the value as written
+     * @return the template's text, or {@code null} when the source is not such a template
+     */
+    static String plainTemplateBody(String source) {
+        String trimmed = source.trim();
+        if (trimmed.length() < TEMPLATE_PREFIX.length() + 1 || !trimmed.startsWith(TEMPLATE_PREFIX)
+                || !trimmed.endsWith("`")) {
+            return null;
+        }
+        String body = trimmed.substring(TEMPLATE_PREFIX.length(), trimmed.length() - 1);
+        return body.contains("${") || body.contains("`") ? null : body;
     }
 
     /**
@@ -1202,9 +1227,14 @@ public class WorkflowUtil {
         return nodeKind != null && AGENT_DECLARATION_NODES.contains(nodeKind);
     }
 
-    // A role field edits one role as text, or an expression yielding a role or a list of them.
+    private static final String NIL_SOURCE = "()";
+
+    // A role field edits one role as text, or an expression yielding a role or a non-empty list of
+    // them: the module's own type, so what the editor accepts is what the compiler accepts.
     private static final String ROLE_LIST_TYPE = "string[]";
-    private static final String ROLE_UNION_TYPE = "string|string[]";
+    private static final String ROLE_UNION_TYPE = "string|[string, string...]";
+    // The roles that decide a task may also be nil: the named users alone decide.
+    private static final String NILABLE_ROLE_UNION_TYPE = ROLE_UNION_TYPE + "?";
 
     /**
      * Declares the input modes a reviewer/user role field offers: a list of roles entered one by
@@ -1232,11 +1262,41 @@ public class WorkflowUtil {
      * @return the same builder, for fluent chaining
      */
     public static <T> Property.Builder<T> addRoleFieldTypes(Property.Builder<T> builder, Object value) {
+        return addRoleFieldTypes(builder, value, ROLE_UNION_TYPE);
+    }
+
+    /**
+     * Declares the input modes of the roles that decide a task or review. The module lets this
+     * field be nil when users are named, so its expression mode accepts {@code ()}.
+     *
+     * @param builder the property builder
+     * @param <T>     the builder's step-out target
+     * @return the same builder, for fluent chaining
+     */
+    public static <T> Property.Builder<T> addDecidingRoleFieldTypes(Property.Builder<T> builder) {
+        return addDecidingRoleFieldTypes(builder, "");
+    }
+
+    /**
+     * Declares the deciding-role input modes and sets the value, as {@link #addRoleFieldTypes(Property.Builder,
+     * Object)} does for the other audience fields.
+     *
+     * @param builder the property builder
+     * @param value   the value as {@link #roleFieldValue} shaped it
+     * @param <T>     the builder's step-out target
+     * @return the same builder, for fluent chaining
+     */
+    public static <T> Property.Builder<T> addDecidingRoleFieldTypes(Property.Builder<T> builder, Object value) {
+        return addRoleFieldTypes(builder, value, NILABLE_ROLE_UNION_TYPE);
+    }
+
+    private static <T> Property.Builder<T> addRoleFieldTypes(Property.Builder<T> builder, Object value,
+                                                             String expressionType) {
         boolean expression = value instanceof String text && !text.isBlank();
         return builder
                 .type().fieldType(Property.ValueType.TEXT_SET).ballerinaType(ROLE_LIST_TYPE)
                     .selected(!expression).stepOut()
-                .type().fieldType(Property.ValueType.EXPRESSION).ballerinaType(ROLE_UNION_TYPE)
+                .type().fieldType(Property.ValueType.EXPRESSION).ballerinaType(expressionType)
                     .selected(expression).stepOut()
                 .value(value);
     }
@@ -1336,14 +1396,33 @@ public class WorkflowUtil {
     private static String roleListSource(List<?> names) {
         List<String> literals = names.stream()
                 .map(item -> item instanceof Map<?, ?> map ? String.valueOf(map.get("value")) : String.valueOf(item))
-                .map(String::trim)
+                .map(WorkflowUtil::roleItemSource)
                 .filter(text -> !text.isEmpty())
-                .map(WorkflowUtil::stringLiteral)
                 .toList();
         if (literals.isEmpty()) {
             return "";
         }
         return literals.size() == 1 ? literals.getFirst() : "[" + String.join(", ", literals) + "]";
+    }
+
+    // The list editor hands each item over as a text-mode string template: one without interpolation is
+    // its text, a literal stays, and an interpolated template is an expression.
+    private static String roleItemSource(String item) {
+        String trimmed = item.trim();
+        String content = trimmed.startsWith("string `") && trimmed.endsWith("`")
+                ? trimmed.substring("string `".length(), trimmed.length() - 1) : null;
+        // One template only: `string `a` + string `b`` is an expression of two.
+        if (content != null && !content.contains("`")) {
+            if (content.contains("${")) {
+                return trimmed;
+            }
+            String text = content.trim();
+            return text.isEmpty() ? "" : stringLiteral(text);
+        }
+        if (isStringLiteral(trimmed)) {
+            return trimmed;
+        }
+        return trimmed.isEmpty() ? "" : stringLiteral(trimmed);
     }
 
     /**
@@ -1365,18 +1444,31 @@ public class WorkflowUtil {
         if (property.value() instanceof List<?> names) {
             return roleListSource(names);
         }
+        // An empty value names nobody; toSourceCode would hand back the field's placeholder instead.
+        if (property.value() == null || property.value().toString().isBlank()) {
+            return "";
+        }
         String source = property.toSourceCode().trim();
-        if (source.isEmpty()) {
+        // `()` — typed as an expression, with any spacing — names nobody, the same as an empty field.
+        if (source.isEmpty() || NIL_SOURCE.equals(source.replaceAll("\\s", ""))) {
             return "";
         }
         // In expression mode the value IS the expression: a bare `financeRoles` names a module-level
         // variable, and quoting it would rewrite that reference into a role literal of the same
-        // spelling. Only a value that arrived without an expression mode selected can be a bare role
-        // name needing quotes.
-        if (isExpressionModeSelected(property)) {
+        // spelling. The same holds for text reaching a hidden root property that offers the list
+        // mode: a policy sub-form edits such a field through the root's value alone, so the mode
+        // flag stays at the definition's list mode while names typed there arrive as a list — text
+        // can only have come from the expression editor. Anything else can be a bare role name
+        // needing quotes.
+        if (isExpressionModeSelected(property) || (property.hidden() && offersListMode(property))) {
             return source;
         }
         return quoteIfBareRole(source);
+    }
+
+    private static boolean offersListMode(Property property) {
+        return property.types() != null && property.types().stream()
+                .anyMatch(type -> type.fieldType() == Property.ValueType.TEXT_SET);
     }
 
     /**

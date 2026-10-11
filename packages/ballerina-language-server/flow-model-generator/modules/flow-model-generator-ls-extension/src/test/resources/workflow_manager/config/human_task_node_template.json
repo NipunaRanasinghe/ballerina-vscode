@@ -54,7 +54,7 @@
       "userRoles": {
         "metadata": {
           "label": "User Roles",
-          "description": "One or more roles permitted to complete this task"
+          "description": "Role(s) permitted to complete this task; may be left empty when users are named"
         },
         "types": [
           {
@@ -107,9 +107,10 @@
           {
             "fieldType": "EXPRESSION",
             "ballerinaType": "map<json>",
-            "selected": false
+            "selected": true
           }
         ],
+        "value": "{}",
         "placeholder": "{}",
         "optional": false,
         "editable": true,
@@ -188,7 +189,7 @@
             "typeMembers": [
               {
                 "type": "Duration",
-                "packageInfo": "ballerina:workflow:0.10.0",
+                "packageInfo": "ballerina:workflow:1.0.0",
                 "packageName": "workflow",
                 "kind": "RECORD_TYPE",
                 "selected": false
