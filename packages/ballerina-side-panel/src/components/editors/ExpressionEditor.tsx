@@ -22,7 +22,6 @@ import styled from '@emotion/styled';
 import {
     Button,
     Codicon,
-    CompletionItem,
     ErrorBanner,
     FormExpressionEditorRef,
     HelperPaneHeight,
@@ -32,6 +31,7 @@ import {
 } from '@wso2/ui-toolkit';
 import { LinkButton } from "@wso2/ui-toolkit/lib/components/LinkButton/LinkButton";
 import { buildRequiredRule, getPropertyFromFormField, isExpandableMode, sanitizeType, toEditorMode } from './utils';
+import { getDefaultHint } from './defaultHint';
 import { buildValidate } from '../Form/validationRules';
 import { useFieldDiagnostics } from '../Form/useFieldDiagnostics';
 import { WarningBanner } from '../Form/WarningBanner';
@@ -410,7 +410,6 @@ export const ExpressionEditor = (props: ExpressionEditorProps) => {
         getHelperPane,
         onFocus,
         onBlur,
-        onCompletionItemSelect,
         onSave,
         onCancel,
         onRemove,
@@ -428,6 +427,7 @@ export const ExpressionEditor = (props: ExpressionEditorProps) => {
 
     const key = fieldKey ?? field.key;
     const readOnly = field.editable === false;
+    const defaultHint = getDefaultHint(field);
     const [focused, setFocused] = useState<boolean>(false);
     const [formDiagnostics, setFormDiagnostics] = useState(field.diagnostics);
     const [isExpandedModalOpen, setIsExpandedModalOpen] = useState(false);
@@ -579,10 +579,6 @@ export const ExpressionEditor = (props: ExpressionEditorProps) => {
         await onBlur?.();
     };
 
-    const handleCompletionSelect = async (value: string, item: CompletionItem) => {
-        await onCompletionItemSelect?.(value, key, item.additionalTextEdits);
-    };
-
     const handleChangeHelperPaneState = (isOpen: boolean) => {
         setIsHelperPaneOpen(isOpen);
     };
@@ -692,7 +688,7 @@ export const ExpressionEditor = (props: ExpressionEditorProps) => {
                                                 </span>
                                             )}
                                         </span>
-                                        {(field.defaultValue && field.defaultValue?.trim() !== "()" && field.defaultValue?.trim() !== "object {}") && <S.DefaultValue style={{ marginLeft: '8px' }}>{`(Default: ${field.defaultValue}) `}</S.DefaultValue>}
+                                        {defaultHint && <S.DefaultValue style={{ marginLeft: '8px' }}>{`(Default: ${defaultHint}) `}</S.DefaultValue>}
                                         {(required ?? !field.optional) && <RequiredFormInput />}
                                         {getFieldTypeLabel(field.types) && (
                                             <S.Type style={{ marginLeft: '5px' }} isVisible={focused} title={getFieldTypeLabel(field.types)}>
@@ -867,7 +863,6 @@ export const ExpressionEditor = (props: ExpressionEditorProps) => {
                                                     }
                                                 }}
                                                 extractArgsFromFunction={handleExtractArgsFromFunction}
-                                                onCompletionSelect={handleCompletionSelect}
                                                 onFocus={async () => {
                                                     handleFocus(onChange);
                                                 }}
