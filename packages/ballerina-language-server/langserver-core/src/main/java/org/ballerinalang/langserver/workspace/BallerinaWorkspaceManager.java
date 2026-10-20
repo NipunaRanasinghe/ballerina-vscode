@@ -652,6 +652,7 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         }
 
         Project project = projectContext.get().project();
+        // Only a gate: the backend must come from the copy below, since codegen desugars the editor's tree.
         Optional<PackageCompilation> packageCompilation = waitAndGetPackageCompilation(project.sourceRoot(), true);
         if (packageCompilation.isEmpty()) {
             logError("Run command execution aborted because package compilation failed");
@@ -707,10 +708,11 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         JarResolver jarResolver = jBallerinaBackend.jarResolver();
 
         Path projectRoot = projectContext.project().sourceRoot();
-        List<String> commands = prepareExecutionCommands(context, projectRoot, executableModule, jarResolver);
+        Path workingDir = (Files.isRegularFile(projectRoot) ? projectRoot.getParent() : projectRoot).toRealPath();
+        List<String> commands = prepareExecutionCommands(context, workingDir, executableModule, jarResolver);
         ProcessBuilder pb = new ProcessBuilder(commands);
         // The runtime reads Config.toml from the working directory, as `bal run` does.
-        pb.directory(workingDirectory(projectRoot).toFile());
+        pb.directory(workingDir.toFile());
         pb.environment().putAll(context.env());
 
         Lock lock = projectContext.lockAndGet();
@@ -729,12 +731,12 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         }
     }
 
-    private List<String> prepareExecutionCommands(RunContext context, Path projectRoot, Module module,
-                                                  JarResolver jarResolver) throws IOException {
+    private List<String> prepareExecutionCommands(RunContext context, Path workingDir, Module module,
+                                                  JarResolver jarResolver) {
         List<String> commands = new ArrayList<>();
         commands.add(context.javaCmd());
         commands.add(HEAP_DUMP_FLAG);
-        commands.add(getHeapDumpPathArgument(projectRoot));
+        commands.add(HEAP_DUMP_PATH_FLAG + workingDir);
         commands.add(STDOUT_ENCODING_FLAG);
         commands.add(STDERR_ENCODING_FLAG);
         commands.add(NATIVE_ACCESS_FLAG);
@@ -756,13 +758,6 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         return commands;
     }
 
-    private static String getHeapDumpPathArgument(Path projectRoot) throws IOException {
-        return HEAP_DUMP_PATH_FLAG + workingDirectory(projectRoot).toRealPath();
-    }
-
-    private static Path workingDirectory(Path projectRoot) {
-        return Files.isRegularFile(projectRoot) ? projectRoot.getParent() : projectRoot;
-    }
 
     private static Project duplicateForRun(ProjectContext projectContext) {
         Lock lock = projectContext.lockAndGet();
@@ -781,11 +776,11 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
             root = root.getCause();
         }
         String detail = String.valueOf(e.getMessage());
+        // The plugin managers append the direct cause's message verbatim, so one without a message leaves "null".
+        if (e.getCause() != null && e.getCause().getMessage() == null && detail.endsWith("null")) {
+            detail = detail.substring(0, detail.length() - "null".length()).trim();
+        }
         if (root != e) {
-            // The plugin managers append the cause's message verbatim, so a cause without one leaves a trailing "null".
-            if (root.getMessage() == null && detail.endsWith("null")) {
-                detail = detail.substring(0, detail.length() - "null".length()).trim();
-            }
             detail += " (caused by " + root.getClass().getName() + ")";
         }
         return new ProjectException(step + ": " + detail, e);
