@@ -27,7 +27,6 @@ import io.ballerina.projects.BuildOptions;
 import io.ballerina.projects.CloudToml;
 import io.ballerina.projects.CompilerPluginToml;
 import io.ballerina.projects.DependenciesToml;
-import io.ballerina.projects.DiagnosticResult;
 import io.ballerina.projects.Document;
 import io.ballerina.projects.DocumentConfig;
 import io.ballerina.projects.DocumentId;
@@ -126,6 +125,8 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
     private static final String STDERR_ENCODING_FLAG = "-Dstderr.encoding=UTF-8";
     // Same flag `bal run` passes: without it JDK 24+ warns when a library loads native code (e.g. gRPC's Netty).
     private static final String NATIVE_ACCESS_FLAG = "--enable-native-access=ALL-UNNAMED";
+    private static final String COMPILER_PLUGIN_FAILED = "A compiler plugin failed while preparing the fast run";
+    private static final String CODE_GENERATION_FAILED = "Code generation failed while preparing the fast run";
 
     /**
      * Cache mapping of document path to source root.
@@ -659,15 +660,26 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
 
         // Run on a copy: code modifiers rewrite the sources and codegen desugars the tree the editor still uses.
         Project runProject = duplicateForRun(projectContext.get());
+        Package runPackage = runProject.currentPackage();
+        // Compile once first so runCodeGenAndModifyPlugins() can skip packages without generators or modifiers.
+        runPackage.getCompilation();
         Collection<Diagnostic> diagnostics = new LinkedList<>();
-        DiagnosticResult pluginDiagnostics = runProject.currentPackage().runCodeGenAndModifyPlugins();
-        diagnostics.addAll(pluginDiagnostics.diagnostics());
-        JBallerinaBackend jBallerinaBackend = JBallerinaBackend.from(runProject.currentPackage().getCompilation(),
-                JvmTarget.JAVA_25, false);
+        try {
+            diagnostics.addAll(runPackage.runCodeGenAndModifyPlugins().diagnostics());
+        } catch (ProjectException e) {
+            throw runFailure(COMPILER_PLUGIN_FAILED, e);
+        }
+        JBallerinaBackend jBallerinaBackend;
+        try {
+            jBallerinaBackend = JBallerinaBackend.from(runProject.currentPackage().getCompilation(),
+                    JvmTarget.JAVA_25, false);
+        } catch (ProjectException e) {
+            throw runFailure(CODE_GENERATION_FAILED, e);
+        }
         // check for compilation errors
         diagnostics.addAll(jBallerinaBackend.diagnosticResult().diagnostics(false));
         // Add tool resolution diagnostics to diagnostics
-        diagnostics.addAll(project.currentPackage().getBuildToolResolution().getDiagnosticList());
+        diagnostics.addAll(runProject.currentPackage().getBuildToolResolution().getDiagnosticList());
 
         if (diagnostics.stream().anyMatch(d -> d.diagnosticInfo().severity() == DiagnosticSeverity.ERROR)) {
             return new RunResult(null, diagnostics);
@@ -759,6 +771,24 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         } finally {
             lock.unlock();
         }
+    }
+
+    // Logs the failure with its stack trace and returns one whose message tells the user which step failed.
+    private ProjectException runFailure(String step, ProjectException e) {
+        clientLogger.logError(LSContextOperation.WS_EXEC_CMD, step, e, null, (Position) null);
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        String detail = String.valueOf(e.getMessage());
+        if (root != e) {
+            // The plugin managers append the cause's message verbatim, so a cause without one leaves a trailing "null".
+            if (root.getMessage() == null && detail.endsWith("null")) {
+                detail = detail.substring(0, detail.length() - "null".length()).trim();
+            }
+            detail += " (caused by " + root.getClass().getName() + ")";
+        }
+        return new ProjectException(step + ": " + detail, e);
     }
 
     private void logError(String message) {
