@@ -695,6 +695,22 @@ public class TestWorkspaceManager {
     }
 
     @Test
+    public void testWSRunEnablesNativeAccess()
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+        Path projectPath = RESOURCE_DIRECTORY.resolve("long_running");
+        Path filePath = projectPath.resolve("main.bal");
+        try {
+            RunResult runResult = executeRunCommand(filePath, 1, 0);
+            Assert.assertTrue(runResult.success());
+            Assert.assertTrue(projectContextOf(filePath).launchCommand().contains("--enable-native-access=ALL-UNNAMED"),
+                    "Fast-run must enable native access like `bal run`, or JDK 24+ warns when a library loads "
+                            + "native code");
+        } finally {
+            executeStopCommand(projectPath);
+        }
+    }
+
+    @Test
     public void testWSRunProjectWithCompilationErrors()
             throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
         Path projectPath = RESOURCE_DIRECTORY.resolve("pkg_with_compilation_errors");

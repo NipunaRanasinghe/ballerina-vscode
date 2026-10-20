@@ -124,6 +124,8 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
     // its output with the platform's native encoding, which is not UTF-8 on Windows.
     private static final String STDOUT_ENCODING_FLAG = "-Dstdout.encoding=UTF-8";
     private static final String STDERR_ENCODING_FLAG = "-Dstderr.encoding=UTF-8";
+    // Same flag `bal run` passes: without it JDK 24+ warns when a library loads native code (e.g. gRPC's Netty).
+    private static final String NATIVE_ACCESS_FLAG = "--enable-native-access=ALL-UNNAMED";
 
     /**
      * Cache mapping of document path to source root.
@@ -723,6 +725,7 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         commands.add(getHeapDumpPathArgument(projectRoot));
         commands.add(STDOUT_ENCODING_FLAG);
         commands.add(STDERR_ENCODING_FLAG);
+        commands.add(NATIVE_ACCESS_FLAG);
         if (context.debugPort() > 0) {
             commands.add(DEBUG_ARGS + context.debugPort());
         }
