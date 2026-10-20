@@ -695,6 +695,42 @@ public class TestWorkspaceManager {
     }
 
     @Test
+    public void testWSRunAppliesCompilerPluginCodeModifiers()
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+        Path projectPath = RESOURCE_DIRECTORY.resolve("compiler_plugin_run");
+        Path filePath = projectPath.resolve("main.bal");
+        try {
+            RunResult runResult = executeRunCommand(filePath, 1, 0);
+            Assert.assertTrue(runResult.success(), String.join("", runResult.errorOutput()));
+            Assert.assertEquals(runResult.programOutput()[0].trim(), "Hello from the code modifier!",
+                    "Fast-run must run the program the compiler plugin's code modifier produced");
+            Assert.assertTrue(workspaceManager.document(filePath).orElseThrow().textDocument().toString()
+                            .contains("__FAST_RUN_MARKER__"),
+                    "The code modifier must not change the document the editor holds");
+        } finally {
+            executeStopCommand(projectPath);
+        }
+    }
+
+    @Test
+    public void testWSRunReportsCompilerPluginFailure()
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+        Path projectPath = RESOURCE_DIRECTORY.resolve("compiler_plugin_failure");
+        Path filePath = projectPath.resolve("main.bal");
+        try {
+            RunResult runResult = executeRunCommand(filePath, 0, 1);
+            Assert.assertFalse(runResult.success());
+            String error = runResult.errorOutput()[0];
+            Assert.assertTrue(error.startsWith("error: A compiler plugin failed while preparing the fast run: "),
+                    error);
+            Assert.assertTrue(error.endsWith("(caused by java.lang.IllegalStateException)"), error);
+            Assert.assertFalse(error.contains("null"), error);
+        } finally {
+            executeStopCommand(projectPath);
+        }
+    }
+
+    @Test
     public void testWSRunEnablesNativeAccess()
             throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
         Path projectPath = RESOURCE_DIRECTORY.resolve("long_running");

@@ -83,8 +83,39 @@ tasks.register('copyRuntime') {
 
 rootProject.configureBallerinaDistribution(project)
 
+// The fast-run tests import lstest/fastrun_marker (a compiler plugin) from the test home's local repository. It is
+// installed only for this module's tests: a distribution package would show up in every completion golden.
+def fastRunMarkerRepoDirs = ["bala", "cache-${ballerinaLangVersion}"].collect {
+    new File(rootProject.ballerinaTestHomeDir, "repositories/local/${it}/lstest")
+}
+
+tasks.register('installFastRunMarker') {
+    dependsOn ':langserver-stdlib:build'
+    dependsOn rootProject.tasks.named('resolveBallerinaDependencies')
+    doLast {
+        delete fastRunMarkerRepoDirs
+        fileTree("${rootProject.project(':langserver-stdlib').buildDir}/ballerina-marker-src/target/bala")
+                .include('*.bala').each { bala ->
+            // <org>-<name>-<platform>-<version>.bala
+            def parts = bala.name.replace('.bala', '').split('-')
+            copy {
+                from zipTree(bala)
+                into new File(fastRunMarkerRepoDirs[0], "fastrun_marker/${parts[-1]}/${parts[-2]}")
+            }
+        }
+    }
+}
+
+tasks.register('removeFastRunMarker') {
+    doLast {
+        delete fastRunMarkerRepoDirs
+    }
+}
+
 test {
     dependsOn copyRuntime
+    dependsOn installFastRunMarker
+    finalizedBy removeFastRunMarker
 
     useTestNG() {
         suites "src/test/resources/testng.xml"
