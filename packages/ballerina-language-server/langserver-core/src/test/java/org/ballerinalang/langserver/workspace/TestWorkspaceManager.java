@@ -680,6 +680,21 @@ public class TestWorkspaceManager {
     }
 
     @Test
+    public void testWSRunProjectReadsConfigToml()
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+        Path projectPath = RESOURCE_DIRECTORY.resolve("config_toml");
+        Path filePath = projectPath.resolve("main.bal");
+        try {
+            RunResult runResult = executeRunCommand(filePath, 1, 0);
+            Assert.assertTrue(runResult.success());
+            Assert.assertEquals(runResult.programOutput()[0].trim(), "Hello from Config.toml!",
+                    "Fast-run must start the program in the project root so it picks up the project's Config.toml");
+        } finally {
+            executeStopCommand(projectPath);
+        }
+    }
+
+    @Test
     public void testWSRunProjectWithCompilationErrors()
             throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
         Path projectPath = RESOURCE_DIRECTORY.resolve("pkg_with_compilation_errors");

@@ -27,6 +27,7 @@ import io.ballerina.projects.BuildOptions;
 import io.ballerina.projects.CloudToml;
 import io.ballerina.projects.CompilerPluginToml;
 import io.ballerina.projects.DependenciesToml;
+import io.ballerina.projects.DiagnosticResult;
 import io.ballerina.projects.Document;
 import io.ballerina.projects.DocumentConfig;
 import io.ballerina.projects.DocumentId;
@@ -654,8 +655,13 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
             return new RunResult(null, Collections.emptyList());
         }
 
-        JBallerinaBackend jBallerinaBackend = execBackend(projectContext.get(), packageCompilation.get());
+        // Run on a copy: code modifiers rewrite the sources and codegen desugars the tree the editor still uses.
+        Project runProject = duplicateForRun(projectContext.get());
         Collection<Diagnostic> diagnostics = new LinkedList<>();
+        DiagnosticResult pluginDiagnostics = runProject.currentPackage().runCodeGenAndModifyPlugins();
+        diagnostics.addAll(pluginDiagnostics.diagnostics());
+        JBallerinaBackend jBallerinaBackend = JBallerinaBackend.from(runProject.currentPackage().getCompilation(),
+                JvmTarget.JAVA_25, false);
         // check for compilation errors
         diagnostics.addAll(jBallerinaBackend.diagnosticResult().diagnostics(false));
         // Add tool resolution diagnostics to diagnostics
@@ -665,7 +671,8 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
             return new RunResult(null, diagnostics);
         }
 
-        Optional<Process> process = executeProject(projectContext.get(), executionContext);
+        Optional<Process> process = executeProject(projectContext.get(), executionContext, runProject,
+                jBallerinaBackend);
         return process.map(value -> new RunResult(value, diagnostics))
                 .orElseGet(() -> new RunResult(null, diagnostics));
     }
@@ -680,15 +687,16 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         return projectContextOpt;
     }
 
-    private Optional<Process> executeProject(ProjectContext projectContext, RunContext context) throws IOException {
-        Project project = projectContext.project();
-        Package pkg = project.currentPackage();
-        Module executableModule = pkg.getDefaultModule();
-        JBallerinaBackend jBallerinaBackend = execBackend(projectContext, pkg.getCompilation());
+    private Optional<Process> executeProject(ProjectContext projectContext, RunContext context, Project runProject,
+                                             JBallerinaBackend jBallerinaBackend) throws IOException {
+        Module executableModule = runProject.currentPackage().getDefaultModule();
         JarResolver jarResolver = jBallerinaBackend.jarResolver();
 
-        List<String> commands = prepareExecutionCommands(context, project.sourceRoot(), executableModule, jarResolver);
+        Path projectRoot = projectContext.project().sourceRoot();
+        List<String> commands = prepareExecutionCommands(context, projectRoot, executableModule, jarResolver);
         ProcessBuilder pb = new ProcessBuilder(commands);
+        // The runtime reads Config.toml from the working directory, as `bal run` does.
+        pb.directory(workingDirectory(projectRoot).toFile());
         pb.environment().putAll(context.env());
 
         Lock lock = projectContext.lockAndGet();
@@ -734,22 +742,17 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
     }
 
     private static String getHeapDumpPathArgument(Path projectRoot) throws IOException {
-        Path workingDirectory = Files.isRegularFile(projectRoot) ? projectRoot.getParent() : projectRoot;
-        return HEAP_DUMP_PATH_FLAG + workingDirectory.toRealPath();
+        return HEAP_DUMP_PATH_FLAG + workingDirectory(projectRoot).toRealPath();
     }
 
-    private static JBallerinaBackend execBackend(ProjectContext projectContext,
-                                                 PackageCompilation packageCompilation) {
+    private static Path workingDirectory(Path projectRoot) {
+        return Files.isRegularFile(projectRoot) ? projectRoot.getParent() : projectRoot;
+    }
+
+    private static Project duplicateForRun(ProjectContext projectContext) {
         Lock lock = projectContext.lockAndGet();
         try {
-            JBallerinaBackend jBallerinaBackend = JBallerinaBackend.from(packageCompilation, JvmTarget.JAVA_25, false);
-            Package pkg = projectContext.project.currentPackage();
-            for (Module module : pkg.modules()) {
-                for (DocumentId id : module.documentIds()) {
-                    module.document(id).modify().apply();
-                }
-            }
-            return jBallerinaBackend;
+            return projectContext.project().duplicate();
         } finally {
             lock.unlock();
         }
