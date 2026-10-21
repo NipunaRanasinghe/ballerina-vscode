@@ -695,6 +695,37 @@ public class TestWorkspaceManager {
     }
 
     @Test
+    public void testWSRunSingleFileReadsConfigTomlBesideIt()
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+        Path filePath = RESOURCE_DIRECTORY.resolve("config_toml_single").resolve("hello.bal").toAbsolutePath();
+        try {
+            RunResult runResult = executeRunCommand(filePath, 1, 0);
+            Assert.assertTrue(runResult.success());
+            Assert.assertEquals(runResult.programOutput()[0].trim(), "Hello from the single file's Config.toml!",
+                    "A single file runs in its folder, as `bal run hello.bal` does from there");
+        } finally {
+            executeStopCommand(filePath);
+        }
+    }
+
+    @Test
+    public void testWSRunWorkspacePackageReadsItsOwnConfigToml()
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+        Path packagePath = RESOURCE_DIRECTORY.resolve("config_toml_workspace").resolve("greeter").toAbsolutePath();
+        Path filePath = packagePath.resolve("main.bal");
+        try {
+            RunResult runResult = executeRunCommand(filePath, 1, 0);
+            Assert.assertTrue(runResult.success());
+            // The prefix comes from the sibling package, resolved through the workspace by the run's copy; the
+            // greeting from the package's Config.toml, not the one at the workspace root.
+            Assert.assertEquals(runResult.programOutput()[0].trim(), "[words] Hello from the package's Config.toml!",
+                    "A workspace package runs in its own root, as `bal run` does from the package folder");
+        } finally {
+            executeStopCommand(packagePath);
+        }
+    }
+
+    @Test
     public void testWSRunEnablesNativeAccess()
             throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
         Path projectPath = RESOURCE_DIRECTORY.resolve("long_running");

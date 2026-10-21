@@ -42,6 +42,8 @@ import io.ballerina.projects.Project;
 import io.ballerina.projects.ProjectException;
 import io.ballerina.projects.ProjectKind;
 import io.ballerina.projects.TomlDocument;
+import io.ballerina.projects.directory.BuildProject;
+import io.ballerina.projects.directory.WorkspaceProject;
 import io.ballerina.projects.util.ProjectConstants;
 import io.ballerina.projects.util.ProjectPaths;
 import io.ballerina.tools.diagnostics.Diagnostic;
@@ -762,7 +764,21 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
     private static Project duplicateForRun(ProjectContext projectContext) {
         Lock lock = projectContext.lockAndGet();
         try {
-            return projectContext.project().duplicate();
+            Project project = projectContext.project();
+            Optional<WorkspaceProject> workspace = project.workspaceProject();
+            if (workspace.isEmpty()) {
+                return project.duplicate();
+            }
+            // A member's own copy still resolves its siblings from the editor's workspace, whose packages belong to
+            // another compiler context, and codegen fails desugaring them. Copy the workspace and take the member.
+            Path memberRoot = project.sourceRoot().toAbsolutePath().normalize();
+            WorkspaceProject workspaceCopy = (WorkspaceProject) workspace.get().duplicate();
+            for (BuildProject member : workspaceCopy.projects()) {
+                if (member.sourceRoot().toAbsolutePath().normalize().equals(memberRoot)) {
+                    return member;
+                }
+            }
+            return project.duplicate();
         } finally {
             lock.unlock();
         }
