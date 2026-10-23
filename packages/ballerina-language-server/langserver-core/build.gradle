@@ -138,7 +138,8 @@ tasks.register('fastRunPluginTest', Test) {
 
 test {
     dependsOn copyRuntime
-    dependsOn fastRunPluginTest
+    // A failing plugin test must not stop the main suite; it runs right after and still fails the build.
+    finalizedBy fastRunPluginTest
 
     useTestNG() {
         suites "src/test/resources/testng.xml"
