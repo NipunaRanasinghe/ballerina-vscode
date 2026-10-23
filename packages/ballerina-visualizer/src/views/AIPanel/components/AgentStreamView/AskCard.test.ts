@@ -21,34 +21,38 @@
  */
 
 import type { ClarifyQuestion } from "@wso2/ballerina-core";
+import { loadFixtures } from "@wso2/test-config/fixtures";
 import { getAnswerLabel } from "./AskCard";
 
-const storageQuestion: ClarifyQuestion = {
-    question: "Where should the orders be stored?",
-    tabLabel: "Storage",
-    selectionType: "single",
-    options: [
-        { label: "In-memory (recommended)", value: "in_memory" },
-        { label: "MySQL database", value: "mysql" },
-    ],
-};
+interface AnsweredCardFixture {
+    description: string;
+    cards: {
+        name: string;
+        questions: ClarifyQuestion[];
+        answers: { question: string; answers: string[] }[];
+    }[];
+}
 
-describe("getAnswerLabel", () => {
-    it("shows the label of the picked option", () => {
-        expect(getAnswerLabel(storageQuestion, "in_memory")).toBe("In-memory (recommended)");
+const answerCases = loadFixtures<AnsweredCardFixture>(__dirname, "fixtures", "answered-cards").flatMap((fixture) =>
+    fixture.data.cards.flatMap((card) =>
+        card.answers.flatMap((answered, i) =>
+            answered.answers.map((answer) => [`${fixture.name}: ${card.name}: ${answer}`, card.questions[i], answer] as const)
+        )
+    )
+);
+
+describe("answered card", () => {
+    it.each(answerCases)("%s shows the picked label, or the answer as typed", (_name, question, answer) => {
+        const option = question?.options.find((o) => o.value === answer);
+        expect(getAnswerLabel(question, answer)).toBe(option ? option.label : answer);
     });
 
-    it("maps each answer of a multi-select question", () => {
-        const multi: ClarifyQuestion = { ...storageQuestion, selectionType: "multiple" };
-        expect(["in_memory", "mysql"].map(answer => getAnswerLabel(multi, answer)))
-            .toEqual(["In-memory (recommended)", "MySQL database"]);
-    });
-
-    it("keeps a typed answer as it is", () => {
-        expect(getAnswerLabel(storageQuestion, "Use a PostgreSQL database")).toBe("Use a PostgreSQL database");
-    });
-
-    it("keeps the answer when the question is missing", () => {
-        expect(getAnswerLabel(undefined, "in_memory")).toBe("in_memory");
+    it("never shows an option value in place of its label", () => {
+        for (const [, question, answer] of answerCases) {
+            const values = new Set(question?.options.map((o) => o.value) ?? []);
+            const labels = new Set(question?.options.map((o) => o.label) ?? []);
+            const shown = getAnswerLabel(question, answer);
+            expect(values.has(shown) && !labels.has(shown)).toBe(false);
+        }
     });
 });
