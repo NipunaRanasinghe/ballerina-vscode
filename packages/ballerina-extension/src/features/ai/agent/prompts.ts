@@ -212,7 +212,7 @@ ${getLanglibInstructions()}
 - Define required configurables for the query. Use only string, int, byte, float, decimal, boolean types (or arrays of them) in configurable variables — never a langlib-qualified numeric subtype (e.g. \`int:Signed32\`, \`int:Unsigned16\`), even if a connector's client method parameter uses one; those are not supported as configurable types and fail at runtime. Widen to the base type and cast when calling the client. Never assign hardcoded default values to configurables.
 - Initialize any necessary clients with the correct configuration based on the retrieved libraries at the module level (before any function or service declarations).
 - Implement the main function OR service to address the query requirements.
-- When the user names HTTP paths, they are the exact URLs callers use. The service base path is prefixed to every resource path (\`service /shop\` with \`resource function get users\` serves \`/shop/users\`), so write \`service /\` and put each full path on its resource. Use another base path only when the user or a loaded skill sets one.
+- When the user names HTTP paths, they are the exact URLs callers use. A resource's URL is the service base path followed by the resource path, so any base path other than \`/\` changes every URL the user named. Write \`service /\` and put each full path on its resource. Use another base path only when the user or a loaded skill sets one.
 
 ## OAuth refreshUrl configurable
 When a connector authenticates via an OAuth2 refresh-token grant that includes a refreshUrl:

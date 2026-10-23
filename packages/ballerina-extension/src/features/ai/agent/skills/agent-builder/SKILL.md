@@ -392,7 +392,7 @@ Name the listener and the service base path after the agent. The base path is ke
 because a Ballerina identifier cannot contain a bare hyphen, **every hyphen in the path MUST be
 escaped with a backslash** (`\-`). The escape is syntax only, it does not appear in the URL the
 client calls. A chat agent keeps this exact shape even when the user names a URL: the base path is
-that URL minus any trailing `/chat`, so the agent answers at `<base path>/chat`. Tell the user that
+the path of that URL minus any trailing `/chat`, so the agent answers at `<base path>/chat`. Tell the user that
 URL when it differs from the one they gave.
 
 Do not change the `chat` resource signature, except when the user asks for authentication (below):
