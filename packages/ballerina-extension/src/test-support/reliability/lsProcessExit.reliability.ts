@@ -31,9 +31,10 @@ const launch = resolveLocalLsCommand();
 const projectRoot = path.join(__dirname, "..", "ls-integration", "fixtures", "hello");
 const mainBal = path.join(projectRoot, "main.bal");
 
-// lsp4j keeps an idle non-daemon listener thread for 60 s, so even a JVM with no leaked
-// threads can take that long to exit after stdin closes.
-const EXIT_TIMEOUT_MS = 75_000;
+// The launcher calls System.exit once stdin closes, so the JVM exits within seconds. Without
+// that call it would wait for every non-daemon thread to end, including lsp4j's idle listener
+// thread, which ends only after 60 s.
+const EXIT_TIMEOUT_MS = 15_000;
 
 if (!launch) {
     // eslint-disable-next-line no-console
