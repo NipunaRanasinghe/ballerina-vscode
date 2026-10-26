@@ -202,6 +202,7 @@ import io.ballerina.modelgenerator.commons.FileSystemUtils;
 import io.ballerina.modelgenerator.commons.FunctionData;
 import io.ballerina.modelgenerator.commons.FunctionDataBuilder;
 import io.ballerina.modelgenerator.commons.ModuleInfo;
+import io.ballerina.modelgenerator.commons.PackageModuleUtils;
 import io.ballerina.modelgenerator.commons.PackageUtil;
 import io.ballerina.modelgenerator.commons.ParameterData;
 import io.ballerina.projects.Document;
@@ -323,7 +324,6 @@ public class CodeAnalyzer extends NodeVisitor {
     public static final String AGENT_TOOL_TYPE = "Agent";
     private static final String RUN_METHOD = "run";
     public static final String NAME = "name";
-    private static final String DATA_MAPPINGS_BAL = "data_mappings.bal";
 
     // Agent field names
     private static final String FIELD_TOOLS = "tools";
@@ -4807,13 +4807,13 @@ public class CodeAnalyzer extends NodeVisitor {
         NameReferenceNode nameReferenceNode = functionCallExpressionNode.functionName();
         String functionName = getIdentifierName(nameReferenceNode);
 
-        // TODO: Here we address the majority of cases by assuming that data mappings reside in `functions.bal`.
-        //  Ideally, there should be a path to determine whether a symbol is an expression-bodied function using the
-        //  semantic model.
-        if (dataMappings.containsKey(functionName) ||
-                functionSymbol.getLocation()
-                        .map(loc -> DATA_MAPPINGS_BAL.equals(loc.lineRange().fileName()))
-                        .orElse(false)) {
+        // TODO: Data mappers are identified from the syntax tree of the declaring `data_mappings.bal` file, since the
+        //  semantic model does not expose whether a function is expression-bodied.
+        //  Use the symbol API once https://github.com/ballerina-platform/ballerina-lang/issues/44329 is fixed.
+        if (dataMappings.containsKey(functionName) || (CommonUtils.isDeclaredInDataMappingsFile(functionSymbol)
+                && PackageModuleUtils.findOwnerModule(project, functionSymbol)
+                .map(module -> CommonUtils.isDataMapperFunction(functionSymbol, module))
+                .orElse(false))) {
             startNode(NodeKind.DATA_MAPPER_CALL, functionCallExpressionNode.parent());
         } else if (isAgentClass(symbol.get())) {
             startNode(NodeKind.AGENT_CALL, functionCallExpressionNode.parent());

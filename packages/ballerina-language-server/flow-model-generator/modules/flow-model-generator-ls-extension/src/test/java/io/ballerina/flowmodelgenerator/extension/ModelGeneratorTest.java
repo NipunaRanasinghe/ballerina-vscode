@@ -30,6 +30,8 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Test cases for the flow model generator service.
@@ -86,6 +88,28 @@ public class ModelGeneratorTest extends AbstractLSTest {
         Assert.assertNotNull(functionCall, "Submodule function call was not generated");
         Assert.assertFalse(functionCall.getAsJsonObject("properties").has("view"),
                 "Submodule function call should not expose navigation");
+    }
+
+    @Test
+    public void testDataMapperCallsInDataMappingsFile() throws IOException {
+        String source = "data_mapper_function_kinds/main.bal";
+        FlowModelGeneratorRequest request = new FlowModelGeneratorRequest(
+                getSourcePath(source), LinePosition.from(2, 0), LinePosition.from(8, 1));
+        JsonObject response = getResponseAndCloseFile(request, source);
+
+        Assert.assertFalse(response.has("errorMsg"), "Flow model generation failed: " + response);
+        Map<String, String> nodeKinds = new HashMap<>();
+        for (JsonElement node : response.getAsJsonObject("flowModel").getAsJsonArray("nodes")) {
+            JsonObject codedata = node.getAsJsonObject().getAsJsonObject("codedata");
+            if (codedata != null && codedata.has("symbol")) {
+                nodeKinds.put(codedata.get("symbol").getAsString(), codedata.get("node").getAsString());
+            }
+        }
+        // Only expression-bodied functions in `data_mappings.bal` are data mappers, including those in submodules
+        Assert.assertEquals(nodeKinds.get("mapPersonToEmployee"), "DATA_MAPPER_CALL");
+        Assert.assertEquals(nodeKinds.get("formatName"), "FUNCTION_CALL");
+        Assert.assertEquals(nodeKinds.get("toLabel"), "DATA_MAPPER_CALL");
+        Assert.assertEquals(nodeKinds.get("isAdult"), "FUNCTION_CALL");
     }
 
     @Test

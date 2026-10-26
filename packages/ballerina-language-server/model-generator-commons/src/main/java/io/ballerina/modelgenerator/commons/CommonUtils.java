@@ -146,6 +146,7 @@ public class CommonUtils {
     public static final String PERSIST_MODEL_FILE = "persistModelFile";
     public static final String PERSIST_DB_CLIENT_FIELD = "dbClient";
     public static final String DEFAULT_PERSIST_MODEL_FILE = "model.bal";
+    public static final String DATA_MAPPINGS_FILE_NAME = "data_mappings.bal";
     public static final String ABSTRACT_PERSIST_CLIENT = "AbstractPersistClient";
     public static final List<String> PERSIST_DB_DRIVERS = List.of("ballerinax/mysql", "ballerinax/postgresql",
             "ballerinax/oracledb", "ballerinax/mssql");
@@ -1177,6 +1178,57 @@ public class CommonUtils {
         }
         FunctionDefinitionNode functionDefNode = (FunctionDefinitionNode) node;
         return BallerinaCompilerApi.getInstance().isNaturalExpressionBodiedFunction(functionDefNode);
+    }
+
+    /**
+     * Checks whether the given function definition can be opened as a data mapper. A data mapper is an
+     * expression-bodied function that is not a natural expression function.
+     *
+     * @param functionDefNode the function definition node
+     * @return true if the function definition is a data mapper, false otherwise
+     */
+    public static boolean isDataMapperFunction(FunctionDefinitionNode functionDefNode) {
+        return functionDefNode.functionBody().kind() == SyntaxKind.EXPRESSION_FUNCTION_BODY
+                && !BallerinaCompilerApi.getInstance().isNaturalExpressionBodiedFunction(functionDefNode);
+    }
+
+    /**
+     * Checks whether the given function symbol is a data mapper declared in the `data_mappings.bal` file of the given
+     * module.
+     *
+     * @param functionSymbol the function symbol
+     * @param module         the module that declares the function
+     * @return true if the function is a data mapper, false otherwise
+     */
+    public static boolean isDataMapperFunction(FunctionSymbol functionSymbol, Module module) {
+        if (!isDeclaredInDataMappingsFile(functionSymbol)) {
+            return false;
+        }
+        Optional<Document> dataMappingsDoc = module.documentIds().stream()
+                .map(module::document)
+                .filter(document -> document.name().equals(DATA_MAPPINGS_FILE_NAME))
+                .findFirst();
+        if (dataMappingsDoc.isEmpty()) {
+            return false;
+        }
+        NonTerminalNode node = getNode(dataMappingsDoc.get().syntaxTree(),
+                functionSymbol.getLocation().get().textRange());
+        return node.kind() == SyntaxKind.FUNCTION_DEFINITION && isDataMapperFunction((FunctionDefinitionNode) node);
+    }
+
+    /**
+     * Checks whether the given symbol is declared in a `data_mappings.bal` file.
+     *
+     * @param symbol the symbol
+     * @return true if the symbol is declared in a `data_mappings.bal` file, false otherwise
+     */
+    public static boolean isDeclaredInDataMappingsFile(Symbol symbol) {
+        Optional<Location> location = symbol.getLocation();
+        if (location.isEmpty()) {
+            return false;
+        }
+        String fileName = location.get().lineRange().fileName().replace('\\', '/');
+        return fileName.equals(DATA_MAPPINGS_FILE_NAME) || fileName.endsWith("/" + DATA_MAPPINGS_FILE_NAME);
     }
 
     public static String getClassType(String packageName, String clientName) {

@@ -185,7 +185,8 @@ public class ModelGenerator {
         if (dataMappingDoc != null) {
             ModulePartNode dataMappingModulePartNode = dataMappingDoc.syntaxTree().rootNode();
             for (ModuleMemberDeclarationNode member : dataMappingModulePartNode.members()) {
-                if (member.kind() == SyntaxKind.FUNCTION_DEFINITION) {
+                if (member.kind() == SyntaxKind.FUNCTION_DEFINITION
+                        && CommonUtils.isDataMapperFunction((FunctionDefinitionNode) member)) {
                     FunctionDefinitionNode functionNode = (FunctionDefinitionNode) member;
                     String functionName = functionNode.functionName().text();
                     LineRange functionLineRange = functionNode.lineRange();

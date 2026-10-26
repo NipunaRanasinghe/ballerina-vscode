@@ -18,13 +18,18 @@
 
 package io.ballerina.modelgenerator.commons;
 
+import io.ballerina.compiler.api.ModuleID;
+import io.ballerina.compiler.api.symbols.ModuleSymbol;
+import io.ballerina.compiler.api.symbols.Symbol;
 import io.ballerina.projects.DocumentId;
 import io.ballerina.projects.Module;
 import io.ballerina.projects.ModuleId;
 import io.ballerina.projects.Package;
 import io.ballerina.projects.Project;
+import org.ballerinalang.langserver.commons.BallerinaCompilerApi;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -32,6 +37,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.WeakHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.StreamSupport;
 
 /**
@@ -47,6 +54,7 @@ public final class PackageModuleUtils {
     public static final String DEFAULT_MODULE = "DEFAULT_MODULE";
     public static final String SUBMODULE = "SUBMODULE";
 
+    private static final Logger LOGGER = Logger.getLogger(PackageModuleUtils.class.getName());
     private static final Map<ModuleId, SourceKind> SOURCE_KIND_CACHE =
             Collections.synchronizedMap(new WeakHashMap<>());
 
@@ -116,6 +124,67 @@ public final class PackageModuleUtils {
                 if (absolute.equals(normalizedFileName) || relative.equals(normalizedFileName)
                         || absolute.endsWith("/" + normalizedFileName)
                         || relative.endsWith("/" + normalizedFileName)) {
+                    return Optional.of(module);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Returns the given project followed by the workspace projects that own the given package.
+     *
+     * @param org         the organization name of the package
+     * @param packageName the name of the package
+     * @param project     the current project
+     * @return the candidate projects that may own the package
+     */
+    public static List<Project> getProjectsForModule(String org, String packageName, Project project) {
+        List<Project> projects = new ArrayList<>();
+        projects.add(project);
+        if (org == null || packageName == null) {
+            return projects;
+        }
+        try {
+            BallerinaCompilerApi compilerApi = BallerinaCompilerApi.getInstance();
+            Optional<Project> workspaceProject = compilerApi.getWorkspaceProject(project);
+            if (workspaceProject.isPresent()) {
+                for (Project child : compilerApi.getWorkspaceProjectsInOrder(workspaceProject.get())) {
+                    if (org.equals(child.currentPackage().packageOrg().value())
+                            && packageName.equals(child.currentPackage().packageName().value())) {
+                        projects.add(child);
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            LOGGER.log(Level.FINE, "Failed to resolve workspace projects", e);
+        }
+        return projects;
+    }
+
+    /**
+     * Finds the module that declares the given symbol, searching the current project and its workspace projects.
+     *
+     * @param project the current project
+     * @param symbol  the symbol to resolve
+     * @return the owning module, if it belongs to the current project or a workspace project
+     */
+    public static Optional<Module> findOwnerModule(Project project, Symbol symbol) {
+        Optional<ModuleID> moduleId = symbol.getModule().map(ModuleSymbol::id);
+        if (moduleId.isEmpty()) {
+            return Optional.empty();
+        }
+        String org = moduleId.get().orgName();
+        String packageName = moduleId.get().packageName();
+        String moduleName = moduleId.get().moduleName();
+        for (Project owner : getProjectsForModule(org, packageName, project)) {
+            Package ownerPackage = owner.currentPackage();
+            if (!org.equals(ownerPackage.packageOrg().value())
+                    || !packageName.equals(ownerPackage.packageName().value())) {
+                continue;
+            }
+            for (Module module : ownerPackage.modules()) {
+                if (moduleName.equals(module.moduleName().toString())) {
                     return Optional.of(module);
                 }
             }
