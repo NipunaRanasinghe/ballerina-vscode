@@ -30,11 +30,12 @@ import java.util.stream.Collectors;
 /**
  * Fails the suite if the tests left behind a thread that would keep the language server JVM alive.
  * <p>
- * When the client disconnects without sending the LSP {@code exit} notification, the stdio launcher's {@code main}
- * returns and the JVM exits only once every non-daemon thread has ended. An idle worker of an executor with no
- * keep-alive timeout, such as a single-thread scheduler created with the default thread factory, never ends, so the
- * process keeps running (wso2/product-integrator#2854). The check covers every executor reached by the tests in this
- * suite.
+ * The stdio launcher calls {@code System.exit} when the client disconnects, so these threads do not keep that
+ * process alive. A host that runs the language server without calling {@code System.exit}, such as an embedding
+ * process or a test JVM, exits only once every non-daemon thread has ended. An idle worker of an executor with no
+ * keep-alive timeout, such as a single-thread scheduler created with the default thread factory, never ends, so such
+ * a process keeps running (wso2/product-integrator#2854). The check also keeps the fix in place if the launcher's
+ * exit call is removed. It covers every executor reached by the tests in this suite.
  */
 public class ThreadLeakTest {
 
