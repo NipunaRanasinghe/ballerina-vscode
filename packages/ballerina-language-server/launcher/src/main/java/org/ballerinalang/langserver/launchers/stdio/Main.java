@@ -72,7 +72,12 @@ public final class Main {
         try {
             startListening.get();
         } catch (ExecutionException e) {
-            System.err.println("Language server input stream failed: " + e.getCause());
+            // lsp4j logs exceptions from the stream and completes normally; only an Error from the listener gets here.
+            System.err.println("Language server listener failed: " + e.getCause());
+            exit.accept(1);
+            throw e;
+        } catch (InterruptedException e) {
+            System.err.println("Language server was interrupted while listening to the input stream");
             exit.accept(1);
             throw e;
         }
