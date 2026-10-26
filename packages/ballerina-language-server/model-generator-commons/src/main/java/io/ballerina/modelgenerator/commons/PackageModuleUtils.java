@@ -142,11 +142,13 @@ public final class PackageModuleUtils {
         String org = moduleId.get().orgName();
         String packageName = moduleId.get().packageName();
         String moduleName = moduleId.get().moduleName();
+        String version = moduleId.get().version();
         Package currentPackage = project.currentPackage();
         Optional<Package> ownerPackage = org.equals(currentPackage.packageOrg().value())
                 && packageName.equals(currentPackage.packageName().value())
+                && version.equals(currentPackage.packageVersion().toString())
                 ? Optional.of(currentPackage)
-                : PackageUtil.findWorkspacePackage(project, org, packageName, moduleName);
+                : PackageUtil.findWorkspacePackage(project, org, packageName, moduleName, version);
         return ownerPackage.flatMap(pkg -> PackageUtil.findModule(pkg, moduleName));
     }
 
