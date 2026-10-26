@@ -92,9 +92,12 @@ public class FastRunCompilerPluginTest {
             Assert.assertFalse(run.started());
             String[] errors = run.logs(ERR_CHANNEL);
             Assert.assertEquals(errors.length, 1, String.join("", errors));
-            Assert.assertEquals(errors[0], "error: A compiler plugin failed while preparing the fast run: The "
-                    + "compiler extension in package 'lstest:fastrun_marker:0.1.0' failed to complete. "
-                    + "(caused by java.lang.IllegalStateException)");
+            // The middle of the message is ballerina-lang's own wording, so only the parts this code adds are
+            // asserted.
+            Assert.assertTrue(errors[0].startsWith("error: A compiler plugin failed while preparing the fast run: "),
+                    errors[0]);
+            Assert.assertTrue(errors[0].contains("lstest:fastrun_marker"), errors[0]);
+            Assert.assertTrue(errors[0].endsWith("(caused by java.lang.IllegalStateException)"), errors[0]);
         } finally {
             executeStop(projectPath);
         }

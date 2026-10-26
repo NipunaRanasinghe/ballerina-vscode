@@ -120,7 +120,7 @@ task balPackMarker(type: Exec, dependsOn: copyMarkerSource) {
     }
 }
 
-task buildAll(dependsOn: [balPack, balPackMarker]) {
+task buildAll(dependsOn: [balPack]) {
     description = 'Builds the Java project, prepares Ballerina sources, and packs the Ballerina module'
     group = 'build'
 }

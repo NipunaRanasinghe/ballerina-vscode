@@ -664,10 +664,11 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         // Run on a copy: code modifiers rewrite the sources and codegen desugars the tree the editor still uses.
         Project runProject = duplicateForRun(projectContext.get());
         Package runPackage = runProject.currentPackage();
-        // Compile once first so runCodeGenAndModifyPlugins() can skip packages without generators or modifiers.
-        runPackage.getCompilation();
         Collection<Diagnostic> diagnostics = new LinkedList<>();
         try {
+            // Compile once first so runCodeGenAndModifyPlugins() can skip packages without generators or modifiers.
+            // Code analyzers run here too, so a plugin that throws on the copy is reported like any other.
+            runPackage.getCompilation();
             diagnostics.addAll(runPackage.runCodeGenAndModifyPlugins().diagnostics());
         } catch (ProjectException e) {
             throw runFailure(COMPILER_PLUGIN_FAILED, e);

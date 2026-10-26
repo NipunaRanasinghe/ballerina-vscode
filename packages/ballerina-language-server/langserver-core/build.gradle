@@ -88,7 +88,8 @@ rootProject.configureBallerinaDistribution(project)
 def fastRunPluginHome = file("$buildDir/fastrun-plugin-home")
 
 tasks.register('installFastRunMarker') {
-    dependsOn ':langserver-stdlib:build'
+    // Only the marker pack: it is test-only, so the production build must not pay for it.
+    dependsOn ':langserver-stdlib:balPackMarker'
     doLast {
         delete fastRunPluginHome
         fileTree("${rootProject.project(':langserver-stdlib').buildDir}/ballerina-marker-src/target/bala")
