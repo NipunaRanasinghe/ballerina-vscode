@@ -25,13 +25,18 @@ import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 /**
- * Tests that {@link Main#startServer} exits the process when the client closes the input stream without sending the
- * LSP {@code exit} notification (wso2/product-integrator#2854).
+ * Tests that {@link Main#startServer} exits the process when it stops listening to the client, including when the
+ * client closes the input stream without sending the LSP {@code exit} notification (wso2/product-integrator#2854).
  */
 public class StartServerExitTest {
 
@@ -55,5 +60,41 @@ public class StartServerExitTest {
         Main.startServer(new ByteArrayInputStream(new byte[0]), new ByteArrayOutputStream(), exitCodes::add);
 
         Assert.assertEquals(exitCodes, List.of(0));
+    }
+
+    @Test(description = "An error that ends the listener must exit the process with status 1", timeOut = 60_000)
+    public void testExitsWhenListenerFails() {
+        List<Integer> exitCodes = new ArrayList<>();
+        // lsp4j logs exceptions from the stream and ends normally, so only an Error fails the listening future.
+        InputStream failing = new InputStream() {
+            @Override
+            public int read() {
+                throw new Error("Simulated listener failure");
+            }
+        };
+
+        Assert.expectThrows(ExecutionException.class,
+                () -> Main.startServer(failing, new ByteArrayOutputStream(), exitCodes::add));
+
+        Assert.assertEquals(exitCodes, List.of(1));
+    }
+
+    @Test(description = "An interrupt while listening must exit the process with status 1", timeOut = 60_000)
+    public void testExitsWhenInterrupted() throws IOException {
+        List<Integer> exitCodes = new ArrayList<>();
+        // A connected pipe with no writes keeps the listener blocked, so only the interrupt ends the wait.
+        PipedOutputStream clientEnd = new PipedOutputStream();
+        PipedInputStream serverEnd = new PipedInputStream(clientEnd);
+        Thread.currentThread().interrupt();
+        try {
+            Assert.expectThrows(InterruptedException.class,
+                    () -> Main.startServer(serverEnd, new ByteArrayOutputStream(), exitCodes::add));
+        } finally {
+            Thread.interrupted();
+            // Ends the listener thread.
+            clientEnd.close();
+        }
+
+        Assert.assertEquals(exitCodes, List.of(1));
     }
 }
