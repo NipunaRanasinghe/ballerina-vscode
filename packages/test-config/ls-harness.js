@@ -30,10 +30,18 @@
 //   2. $BALLERINA_HOME/bin/bal
 //   3. ~/.ballerina/ballerina-home/bin/bal
 // resolveBalCommand() returns null when none exist, so suites can skip cleanly.
+//
+// resolveLocalLsCommand() instead runs a locally built LS jar with `java` directly, on the
+// same classpath the extension uses (getServerOptionsUsingJava in
+// ballerina-extension/src/utils/server/server.ts). Jar resolution order:
+//   1. $BAL_LS_JAR
+//   2. the newest packages/ballerina-language-server/build/ballerina-language-server-*.jar
+// The distribution comes from `bal home` and the JDK from its dependencies/ directory
+// (falling back to $JAVA_HOME). Returns null when any of these is missing.
 
 "use strict";
 
-const { spawn } = require("child_process");
+const { execFileSync, spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -53,22 +61,107 @@ function resolveBalCommand() {
     return candidates.find((c) => c && fs.existsSync(c)) ?? null;
 }
 
+// LS modules that the LS jar already bundles. Keep in sync with excludeJarPatterns in
+// ballerina-extension/src/utils/server/server.ts.
+const DISTRIBUTION_JAR_EXCLUDES = [
+    /^architecture-model/, /^flow-model/, /^graphql-model/, /^model-generator/, /^sequence-model/,
+    /^service-model/, /^test-manager-service/, /^language-server/, /^bal-shell-service/,
+    /^org\.eclipse\.lsp4j/, /^diagram-util/, /^openapi-ls-extension/, /^sqlite-jdbc/,
+];
+
+function newestMatch(dir, pattern) {
+    if (!fs.existsSync(dir)) {
+        return null;
+    }
+    const matches = fs.readdirSync(dir)
+        .filter((f) => pattern.test(f))
+        .map((f) => path.join(dir, f))
+        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    return matches[0] ?? null;
+}
+
+function resolveLocalLsJar() {
+    if (process.env.BAL_LS_JAR) {
+        return fs.existsSync(process.env.BAL_LS_JAR) ? process.env.BAL_LS_JAR : null;
+    }
+    const buildDir = path.join(__dirname, "..", "ballerina-language-server", "build");
+    return newestMatch(buildDir, /^ballerina-language-server-.*(?<!-sources|-javadoc)\.jar$/);
+}
+
+function resolveJava(ballerinaHome) {
+    const javaName = isWindows ? "java.exe" : "java";
+    const baseHome = ballerinaHome.includes("distributions")
+        ? ballerinaHome.substring(0, ballerinaHome.indexOf("distributions"))
+        : ballerinaHome;
+    const depsDir = path.join(baseHome, "dependencies");
+    const jdks = fs.existsSync(depsDir)
+        ? fs.readdirSync(depsDir).filter((d) => /^jdk-.+-jre$/.test(d))
+            .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+        : [];
+    const candidates = [
+        ...jdks.map((d) => path.join(depsDir, d, "bin", javaName)),
+        process.env.JAVA_HOME && path.join(process.env.JAVA_HOME, "bin", javaName),
+    ];
+    return candidates.find((c) => c && fs.existsSync(c)) ?? null;
+}
+
+function resolveLocalLsCommand() {
+    const jar = resolveLocalLsJar();
+    const bal = resolveBalCommand();
+    if (!jar || !bal) {
+        return null;
+    }
+    let ballerinaHome;
+    try {
+        const out = execFileSync(bal, ["home"], { encoding: "utf8", shell: isWindows });
+        ballerinaHome = out.trim().split(/\r?\n/).pop().trim();
+    } catch {
+        return null;
+    }
+    const java = resolveJava(ballerinaHome);
+    if (!java) {
+        return null;
+    }
+    const libDirs = [
+        path.join(ballerinaHome, "bre", "lib"),
+        path.join(ballerinaHome, "lib", "tools", "lang-server", "lib"),
+        path.join(ballerinaHome, "lib", "tools", "debug-adapter", "lib"),
+    ];
+    const distributionJars = libDirs.filter((dir) => fs.existsSync(dir)).flatMap((dir) =>
+        fs.readdirSync(dir)
+            .filter((f) => f.endsWith(".jar") && !DISTRIBUTION_JAR_EXCLUDES.some((re) => re.test(f)))
+            .map((f) => path.join(dir, f)));
+    return {
+        command: java,
+        args: [
+            "-cp", [...distributionJars, jar].join(path.delimiter),
+            `-Dballerina.home=${ballerinaHome}`,
+            "org.ballerinalang.langserver.launchers.stdio.Main",
+        ],
+    };
+}
+
 function pathToFileUri(p) {
     const resolved = path.resolve(p).replace(/\\/g, "/");
     return "file://" + (resolved.startsWith("/") ? "" : "/") + resolved;
 }
 
 class LsHarness {
-    constructor(balCommand, opts = {}) {
-        this.balCommand = balCommand;
+    // `launch` is a bal launcher path (runs `bal start-language-server`) or a
+    // { command, args } spec such as resolveLocalLsCommand() returns.
+    constructor(launch, opts = {}) {
+        this.launch = typeof launch === "string"
+            ? { command: launch, args: ["start-language-server"] }
+            : launch;
         this.buf = Buffer.alloc(0);
         this.nextId = 1;
         this.pending = new Map();
+        this.notificationWaiters = [];
         this.defaultTimeoutMs = opts.timeoutMs ?? 60_000;
     }
 
     start() {
-        this.proc = spawn(this.balCommand, ["start-language-server"], {
+        this.proc = spawn(this.launch.command, this.launch.args, {
             stdio: ["pipe", "pipe", "pipe"],
             env: process.env,
         });
@@ -140,7 +233,15 @@ class LsHarness {
                 p.resolve(msg.result);
             }
         }
-        // Notifications are ignored by this harness.
+        if (msg.method !== undefined) {
+            this.notificationWaiters = this.notificationWaiters.filter((w) => {
+                if (w.method !== msg.method) {
+                    return true;
+                }
+                w.resolve(msg.params);
+                return false;
+            });
+        }
     }
 
     write(msg) {
@@ -163,6 +264,18 @@ class LsHarness {
                 reject: (e) => { clearTimeout(timer); reject(e); },
             });
             this.write({ jsonrpc: "2.0", id, method, params });
+        });
+    }
+
+    // Resolves with the params of the next server notification named `method`.
+    waitForNotification(method, timeoutMs = this.defaultTimeoutMs) {
+        return new Promise((resolve, reject) => {
+            const waiter = { method, resolve: (params) => { clearTimeout(timer); resolve(params); } };
+            const timer = setTimeout(() => {
+                this.notificationWaiters = this.notificationWaiters.filter((w) => w !== waiter);
+                reject(new Error(`Timeout (${timeoutMs}ms) waiting for notification '${method}'`));
+            }, timeoutMs);
+            this.notificationWaiters.push(waiter);
         });
     }
 
@@ -198,4 +311,4 @@ class LsHarness {
     }
 }
 
-module.exports = { resolveBalCommand, pathToFileUri, LsHarness };
+module.exports = { resolveBalCommand, resolveLocalLsCommand, pathToFileUri, LsHarness };
