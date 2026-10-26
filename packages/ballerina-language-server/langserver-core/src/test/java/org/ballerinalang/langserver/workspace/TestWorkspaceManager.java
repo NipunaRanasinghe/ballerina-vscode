@@ -726,6 +726,35 @@ public class TestWorkspaceManager {
     }
 
     @Test
+    public void testWSRunWorkspacePackageSeesUnsavedSiblingEdit()
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException, IOException {
+        Path workspacePath = RESOURCE_DIRECTORY.resolve("config_toml_workspace").toAbsolutePath();
+        Path packagePath = workspacePath.resolve("greeter");
+        Path filePath = packagePath.resolve("main.bal");
+        Path siblingFile = workspacePath.resolve("words").resolve("words.bal");
+        workspaceManager.loadProject(filePath);
+        // Edit the sibling in the editor only: on disk it still returns "[words] ".
+        openFile(siblingFile, Files.readString(siblingFile));
+        DidChangeTextDocumentParams params = new DidChangeTextDocumentParams();
+        params.setTextDocument(new VersionedTextDocumentIdentifier(siblingFile.toUri().toString(), 2));
+        params.getContentChanges().add(new TextDocumentContentChangeEvent(
+                "public function prefix() returns string {" + CommonUtil.LINE_SEPARATOR
+                        + "    return \"[unsaved] \";" + CommonUtil.LINE_SEPARATOR + "}"));
+        workspaceManager.didChange(siblingFile, params);
+        try {
+            RunResult runResult = executeRunCommand(filePath, 1, 0);
+            Assert.assertTrue(runResult.success());
+            Assert.assertEquals(runResult.programOutput()[0].trim(), "[unsaved] Hello from the package's Config.toml!",
+                    "The run's copy of the workspace must carry the editor's unsaved edits to sibling packages");
+        } finally {
+            executeStopCommand(packagePath);
+            DidCloseTextDocumentParams closeParams = new DidCloseTextDocumentParams();
+            closeParams.setTextDocument(new TextDocumentIdentifier(siblingFile.toUri().toString()));
+            workspaceManager.didClose(siblingFile, closeParams);
+        }
+    }
+
+    @Test
     public void testWSRunEnablesNativeAccess()
             throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
         Path projectPath = RESOURCE_DIRECTORY.resolve("long_running");
@@ -1276,10 +1305,14 @@ public class TestWorkspaceManager {
     }
 
     private void openFile(Path singleFile) throws WorkspaceDocumentException {
+        openFile(singleFile, dummyContent);
+    }
+
+    private void openFile(Path singleFile, String content) throws WorkspaceDocumentException {
         DidOpenTextDocumentParams params = new DidOpenTextDocumentParams();
         TextDocumentItem textDocumentItem = new TextDocumentItem();
         textDocumentItem.setUri(singleFile.toUri().toString());
-        textDocumentItem.setText(dummyContent);
+        textDocumentItem.setText(content);
         params.setTextDocument(textDocumentItem);
         workspaceManager.didOpen(singleFile, params);
     }
