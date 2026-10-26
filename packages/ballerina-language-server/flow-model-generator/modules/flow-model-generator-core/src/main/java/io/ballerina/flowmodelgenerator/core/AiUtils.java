@@ -91,6 +91,7 @@ import io.ballerina.projects.Project;
 import io.ballerina.projects.TomlDocument;
 import io.ballerina.tools.diagnostics.Location;
 import org.ballerinalang.langserver.common.utils.CommonUtil;
+import org.ballerinalang.langserver.commons.BallerinaCompilerApi;
 import org.wso2.ballerinalang.compiler.tree.BLangConstantValue;
 
 import java.io.IOException;
@@ -137,7 +138,6 @@ import static io.ballerina.flowmodelgenerator.core.model.NodeKind.MODEL_PROVIDER
 import static io.ballerina.flowmodelgenerator.core.model.NodeKind.SHORT_TERM_MEMORY_STORE;
 import static io.ballerina.flowmodelgenerator.core.model.NodeKind.VECTOR_STORE;
 import static io.ballerina.flowmodelgenerator.core.model.NodeKind.VECTOR_STORES;
-import static io.ballerina.modelgenerator.commons.PackageModuleUtils.getProjectsForModule;
 
 /**
  * Utility class for resolving Ballerina AI module versions, their dependent modules, and supported features.
@@ -1867,6 +1867,29 @@ public class AiUtils {
         return getProjectsForModule(org, packageName, project).stream()
                 .anyMatch(p -> org.equals(p.currentPackage().packageOrg().value())
                         && packageName.equals(p.currentPackage().packageName().value()));
+    }
+
+    private static List<Project> getProjectsForModule(String org, String packageName, Project project) {
+        List<Project> projects = new ArrayList<>();
+        projects.add(project);
+        if (org == null || packageName == null) {
+            return projects;
+        }
+        try {
+            BallerinaCompilerApi compilerApi = BallerinaCompilerApi.getInstance();
+            Optional<Project> workspaceProject = compilerApi.getWorkspaceProject(project);
+            if (workspaceProject.isPresent()) {
+                for (Project child : compilerApi.getWorkspaceProjectsInOrder(workspaceProject.get())) {
+                    if (org.equals(child.currentPackage().packageOrg().value())
+                            && packageName.equals(child.currentPackage().packageName().value())) {
+                        projects.add(child);
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            LOGGER.log(Level.FINE, "Failed to resolve workspace projects", e);
+        }
+        return projects;
     }
 
     private static Optional<WiredParam> initParamOfType(ClassSymbol classSymbol, String interfaceName) {

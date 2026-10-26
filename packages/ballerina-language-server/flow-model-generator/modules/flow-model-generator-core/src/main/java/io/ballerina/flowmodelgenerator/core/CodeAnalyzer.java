@@ -302,7 +302,6 @@ public class CodeAnalyzer extends NodeVisitor {
     // Readonly fields
     private final Project project;
     private final SemanticModel semanticModel;
-    private final Map<String, LineRange> dataMappings;
     private final Map<String, LineRange> naturalFunctions;
     private final TextDocument textDocument;
     private final ModuleInfo moduleInfo;
@@ -341,13 +340,12 @@ public class CodeAnalyzer extends NodeVisitor {
     private List<Option> workflowOptions;
 
     public CodeAnalyzer(Project project, SemanticModel semanticModel, String connectionScope,
-                        Map<String, LineRange> dataMappings, Map<String, LineRange> naturalFunctions,
+                        Map<String, LineRange> naturalFunctions,
                         TextDocument textDocument, ModuleInfo moduleInfo,
                         boolean forceAssign,
                         WorkspaceManager workspaceManager, Path filePath) {
         this.project = project;
         this.semanticModel = semanticModel;
-        this.dataMappings = dataMappings;
         this.naturalFunctions = naturalFunctions;
         this.connectionScope = connectionScope;
         this.textDocument = textDocument;
@@ -4810,10 +4808,10 @@ public class CodeAnalyzer extends NodeVisitor {
         // TODO: Data mappers are identified from the syntax tree of the declaring `data_mappings.bal` file, since the
         //  semantic model does not expose whether a function is expression-bodied.
         //  Use the symbol API once https://github.com/ballerina-platform/ballerina-lang/issues/44329 is fixed.
-        if (dataMappings.containsKey(functionName) || (CommonUtils.isDeclaredInDataMappingsFile(functionSymbol)
+        if (CommonUtils.isDeclaredInDataMappingsFile(functionSymbol)
                 && PackageModuleUtils.findOwnerModule(project, functionSymbol)
                 .map(module -> CommonUtils.isDataMapperFunction(functionSymbol, module))
-                .orElse(false))) {
+                .orElse(false)) {
             startNode(NodeKind.DATA_MAPPER_CALL, functionCallExpressionNode.parent());
         } else if (isAgentClass(symbol.get())) {
             startNode(NodeKind.AGENT_CALL, functionCallExpressionNode.parent());

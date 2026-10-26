@@ -6,3 +6,6 @@ function mapPersonToEmployee(Person person) returns Employee => {
 function formatName(string name) returns string {
     return name.toUpperAscii();
 }
+
+// Shares its name with the block-bodied `util:isAdult`, which must still be a regular function call
+function isAdult(Person person) returns boolean => person.age >= 18;

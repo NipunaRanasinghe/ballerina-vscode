@@ -109,6 +109,7 @@ public class ModelGeneratorTest extends AbstractLSTest {
         Assert.assertEquals(nodeKinds.get("mapPersonToEmployee"), "DATA_MAPPER_CALL");
         Assert.assertEquals(nodeKinds.get("formatName"), "FUNCTION_CALL");
         Assert.assertEquals(nodeKinds.get("toLabel"), "DATA_MAPPER_CALL");
+        // `util:isAdult` is block-bodied even though the root module has a data mapper with the same name
         Assert.assertEquals(nodeKinds.get("isAdult"), "FUNCTION_CALL");
     }
 
