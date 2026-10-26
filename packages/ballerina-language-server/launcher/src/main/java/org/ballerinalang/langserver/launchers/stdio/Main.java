@@ -27,6 +27,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.function.IntConsumer;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -48,6 +49,18 @@ public final class Main {
 
     public static void startServer(InputStream in, OutputStream out)
             throws InterruptedException, ExecutionException {
+        startServer(in, out, System::exit);
+    }
+
+    /**
+     * Starts the server and calls {@code exit} once the input stream closes.
+     * <p>
+     * A client that disconnects without sending the LSP {@code exit} notification only closes the stream. Exiting
+     * explicitly at that point stops a non-daemon thread from keeping the JVM running with no client
+     * (wso2/product-integrator#2854).
+     */
+    static void startServer(InputStream in, OutputStream out, IntConsumer exit)
+            throws InterruptedException, ExecutionException {
         protectJsonRpcStream();
 
         BallerinaLanguageServer server = new BallerinaLanguageServer();
@@ -56,7 +69,14 @@ public final class Main {
         ExtendedLanguageClient client = launcher.getRemoteProxy();
         server.connect(client);
         Future<?> startListening = launcher.startListening();
-        startListening.get();
+        try {
+            startListening.get();
+        } catch (ExecutionException e) {
+            System.err.println("Language server input stream failed: " + e.getCause());
+            exit.accept(1);
+            throw e;
+        }
+        exit.accept(0);
     }
 
     /**
