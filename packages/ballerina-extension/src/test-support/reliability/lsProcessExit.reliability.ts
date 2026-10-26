@@ -1,0 +1,110 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com) All Rights Reserved.
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+// Reliability (non-functional, not a PR gate): no language server process may remain after
+// its client goes away, whether or not the client sends LSP `exit`
+// (wso2/product-integrator#2854). Runs the locally built LS jar (resolveLocalLsCommand), so it
+// checks this repo's LS rather than the one bundled with the distribution. Skips when the jar,
+// a Ballerina distribution or a JDK is missing.
+
+import * as fs from "fs";
+import * as path from "path";
+import { ChildProcess } from "child_process";
+import { LsHarness, resolveLocalLsCommand, pathToFileUri } from "@wso2/test-config/ls-harness";
+
+const launch = resolveLocalLsCommand();
+const projectRoot = path.join(__dirname, "..", "ls-integration", "fixtures", "hello");
+const mainBal = path.join(projectRoot, "main.bal");
+
+// lsp4j keeps an idle non-daemon listener thread for 60 s, so even a JVM with no leaked
+// threads can take that long to exit after stdin closes.
+const EXIT_TIMEOUT_MS = 75_000;
+
+if (!launch) {
+    // eslint-disable-next-line no-console
+    console.warn("[reliability] No local LS jar, Ballerina distribution or JDK found; skipping.");
+}
+
+const describeReliability = launch ? describe : describe.skip;
+
+function waitForExit(proc: ChildProcess, timeoutMs: number): Promise<boolean> {
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+        return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(false), timeoutMs);
+        proc.once("exit", () => {
+            clearTimeout(timer);
+            resolve(true);
+        });
+    });
+}
+
+// Edits main.bal, which creates ArtifactGenerationDebouncer (confirmed by its publishArtifacts
+// notification), and sends an expression editor request, which creates the expression editor
+// Debouncer. These are the two schedulers whose threads kept the JVM alive in #2854.
+async function startAndUseDebouncers(): Promise<LsHarness> {
+    const ls = new LsHarness(launch!);
+    ls.start();
+    await ls.initialize(projectRoot);
+    const text = fs.readFileSync(mainBal, "utf8");
+    const artifactsPublished = ls.waitForNotification("designModelService/publishArtifacts");
+    ls.didOpen(mainBal, text);
+    ls.notify("textDocument/didChange", {
+        textDocument: { uri: pathToFileUri(mainBal), version: 2 },
+        contentChanges: [{ text: text.replace("Hello, World!", "Hello!") }],
+    });
+    await artifactsPublished;
+    const signatureHelp = await ls.request("expressionEditor/signatureHelp", {
+        filePath: mainBal,
+        context: {
+            expression: "io:println(1)",
+            offset: 11,
+            lineOffset: 3,
+            property: { types: [{ fieldType: "EXPRESSION" }] },
+        },
+        signatureHelpContext: { triggerKind: "Invoked", isRetrigger: false },
+    });
+    expect(signatureHelp).toBeDefined();
+    return ls;
+}
+
+describeReliability("Language server process exit (reliability)", () => {
+    let ls: LsHarness | undefined;
+
+    afterEach(() => {
+        // Never leave a JVM behind, even when an assertion failed.
+        if (ls?.proc && ls.proc.exitCode === null && ls.proc.signalCode === null) {
+            ls.proc.kill("SIGKILL");
+        }
+        ls = undefined;
+    });
+
+    it("exits after LSP shutdown and exit", async () => {
+        ls = await startAndUseDebouncers();
+        await ls.request("shutdown");
+        ls.notify("exit");
+        expect(await waitForExit(ls.proc!, EXIT_TIMEOUT_MS)).toBe(true);
+    });
+
+    it("exits when the client closes stdin without sending exit", async () => {
+        ls = await startAndUseDebouncers();
+        ls.proc!.stdin!.end();
+        expect(await waitForExit(ls.proc!, EXIT_TIMEOUT_MS)).toBe(true);
+    });
+});
