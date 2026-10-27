@@ -129,6 +129,7 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
     private static final String NATIVE_ACCESS_FLAG = "--enable-native-access=ALL-UNNAMED";
     // Same flag `bal run` passes: without it JDK 24+ warns when a library uses sun.misc.Unsafe (e.g. Netty).
     private static final String UNSAFE_MEMORY_ACCESS_FLAG = "--sun-misc-unsafe-memory-access=allow";
+    private static final String PROJECT_COPY_FAILED = "Could not copy the project for the fast run";
     private static final String COMPILER_PLUGIN_FAILED = "A compiler plugin failed while preparing the fast run";
     private static final String CODE_GENERATION_FAILED = "Code generation failed while preparing the fast run";
 
@@ -664,7 +665,12 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         }
 
         // Run on a copy: code modifiers rewrite the sources and codegen desugars the tree the editor still uses.
-        Project runProject = duplicateForRun(projectContext.get());
+        Project runProject;
+        try {
+            runProject = duplicateForRun(projectContext.get());
+        } catch (ProjectException e) {
+            throw runFailure(PROJECT_COPY_FAILED, e);
+        }
         Collection<Diagnostic> diagnostics = new LinkedList<>();
         // No local for the package: it would keep the pre-modifier compilation reachable during codegen below.
         try {
