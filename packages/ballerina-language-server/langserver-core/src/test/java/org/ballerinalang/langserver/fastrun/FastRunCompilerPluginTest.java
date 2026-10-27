@@ -103,6 +103,25 @@ public class FastRunCompilerPluginTest {
         }
     }
 
+    @Test
+    public void testRunReportsAnalyzerFailureOnModifiedSource()
+            throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {
+        // The analyzer fails only on the modified source, so it fails in the compile that follows the modifiers.
+        Path projectPath = RESOURCE_DIRECTORY.resolve("compiler_plugin_analyzer_failure");
+        Path filePath = projectPath.resolve("main.bal");
+        try {
+            PluginRun run = executeRun(filePath);
+            Assert.assertFalse(run.started());
+            String[] errors = run.logs(ERR_CHANNEL);
+            Assert.assertEquals(errors.length, 1, String.join("", errors));
+            Assert.assertTrue(errors[0].startsWith("error: A compiler plugin failed while preparing the fast run: "),
+                    errors[0]);
+            Assert.assertTrue(errors[0].endsWith("(caused by java.lang.IllegalStateException)"), errors[0]);
+        } finally {
+            executeStop(projectPath);
+        }
+    }
+
     // A run that did not start has already logged its diagnostics, so only a started run is waited on.
     private PluginRun executeRun(Path filePath)
             throws WorkspaceDocumentException, EventSyncException, LSCommandExecutorException {

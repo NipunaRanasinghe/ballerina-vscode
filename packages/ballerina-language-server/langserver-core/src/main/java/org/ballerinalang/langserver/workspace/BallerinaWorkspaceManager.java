@@ -673,18 +673,20 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         }
         Collection<Diagnostic> diagnostics = new LinkedList<>();
         // No local for the package: it would keep the pre-modifier compilation reachable during codegen below.
+        PackageCompilation runCompilation;
         try {
             // Compile once first so runCodeGenAndModifyPlugins() can skip packages without generators or modifiers.
             // Code analyzers run here too, so a plugin that throws on the copy is reported like any other.
             runProject.currentPackage().getCompilation();
             diagnostics.addAll(runProject.currentPackage().runCodeGenAndModifyPlugins().diagnostics());
+            // A modified package compiles afresh here and its code analyzers run again, so this is still plugin code.
+            runCompilation = runProject.currentPackage().getCompilation();
         } catch (ProjectException e) {
             throw runFailure(COMPILER_PLUGIN_FAILED, e);
         }
         JBallerinaBackend jBallerinaBackend;
         try {
-            jBallerinaBackend = JBallerinaBackend.from(runProject.currentPackage().getCompilation(),
-                    JvmTarget.JAVA_25, false);
+            jBallerinaBackend = JBallerinaBackend.from(runCompilation, JvmTarget.JAVA_25, false);
         } catch (ProjectException e) {
             throw runFailure(CODE_GENERATION_FAILED, e);
         }

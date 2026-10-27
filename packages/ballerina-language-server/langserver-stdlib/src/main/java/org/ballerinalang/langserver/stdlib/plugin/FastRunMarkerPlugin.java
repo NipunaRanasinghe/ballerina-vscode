@@ -20,8 +20,12 @@ package org.ballerinalang.langserver.stdlib.plugin;
 import io.ballerina.projects.Document;
 import io.ballerina.projects.DocumentId;
 import io.ballerina.projects.Module;
+import io.ballerina.projects.Package;
+import io.ballerina.projects.plugins.CodeAnalysisContext;
+import io.ballerina.projects.plugins.CodeAnalyzer;
 import io.ballerina.projects.plugins.CodeModifier;
 import io.ballerina.projects.plugins.CodeModifierContext;
+import io.ballerina.projects.plugins.CompilationAnalysisContext;
 import io.ballerina.projects.plugins.CompilerPlugin;
 import io.ballerina.projects.plugins.CompilerPluginContext;
 import io.ballerina.projects.plugins.SourceModifierContext;
@@ -29,7 +33,8 @@ import io.ballerina.tools.text.TextDocuments;
 
 /**
  * Test compiler plugin of {@code lstest/fastrun_marker}: its code modifier rewrites the importing package's sources,
- * so a test can tell whether a run executed the modified program.
+ * so a test can tell whether a run executed the modified program. Its code analyzer fails only on source the modifier
+ * produced, so a test can tell which step reports it.
  *
  * @since 1.10.0
  */
@@ -38,10 +43,13 @@ public class FastRunMarkerPlugin extends CompilerPlugin {
     static final String MARKER = "__FAST_RUN_MARKER__";
     static final String REPLACEMENT = "code modifier";
     static final String FAILURE_MARKER = "__FAST_RUN_PLUGIN_FAILURE__";
+    static final String ANALYZER_FAILURE_MARKER = "__FAST_RUN_ANALYZER_FAILURE__";
+    static final String ANALYZER_FAILURE_TRIGGER = "__FAST_RUN_MODIFIED_FOR_ANALYZER__";
 
     @Override
     public void init(CompilerPluginContext pluginContext) {
         pluginContext.addCodeModifier(new MarkerModifier());
+        pluginContext.addCodeAnalyzer(new ModifiedSourceAnalyzer());
     }
 
     private static class MarkerModifier extends CodeModifier {
@@ -60,8 +68,29 @@ public class FastRunMarkerPlugin extends CompilerPlugin {
                         // No message, like the NPEs real plugins throw.
                         throw new IllegalStateException();
                     }
-                    if (source.contains(MARKER)) {
-                        context.modifySourceFile(TextDocuments.from(source.replace(MARKER, REPLACEMENT)), documentId);
+                    String modified = source.replace(MARKER, REPLACEMENT)
+                            .replace(ANALYZER_FAILURE_MARKER, ANALYZER_FAILURE_TRIGGER);
+                    if (!modified.equals(source)) {
+                        context.modifySourceFile(TextDocuments.from(modified), documentId);
+                    }
+                }
+            }
+        }
+    }
+
+    private static class ModifiedSourceAnalyzer extends CodeAnalyzer {
+
+        @Override
+        public void init(CodeAnalysisContext analysisContext) {
+            analysisContext.addCompilationAnalysisTask(ModifiedSourceAnalyzer::analyze);
+        }
+
+        private static void analyze(CompilationAnalysisContext context) {
+            Package currentPackage = context.currentPackage();
+            for (Module module : currentPackage.modules()) {
+                for (DocumentId documentId : module.documentIds()) {
+                    if (module.document(documentId).textDocument().toString().contains(ANALYZER_FAILURE_TRIGGER)) {
+                        throw new IllegalStateException();
                     }
                 }
             }
