@@ -127,6 +127,8 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
     private static final String STDERR_ENCODING_FLAG = "-Dstderr.encoding=UTF-8";
     // Same flag `bal run` passes: without it JDK 24+ warns when a library loads native code (e.g. gRPC's Netty).
     private static final String NATIVE_ACCESS_FLAG = "--enable-native-access=ALL-UNNAMED";
+    // Same flag `bal run` passes: without it JDK 24+ warns when a library uses sun.misc.Unsafe (e.g. Netty).
+    private static final String UNSAFE_MEMORY_ACCESS_FLAG = "--sun-misc-unsafe-memory-access=allow";
     private static final String COMPILER_PLUGIN_FAILED = "A compiler plugin failed while preparing the fast run";
     private static final String CODE_GENERATION_FAILED = "Code generation failed while preparing the fast run";
 
@@ -743,6 +745,7 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         commands.add(STDOUT_ENCODING_FLAG);
         commands.add(STDERR_ENCODING_FLAG);
         commands.add(NATIVE_ACCESS_FLAG);
+        commands.add(UNSAFE_MEMORY_ACCESS_FLAG);
         if (context.debugPort() > 0) {
             commands.add(DEBUG_ARGS + context.debugPort());
         }

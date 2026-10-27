@@ -765,6 +765,10 @@ public class TestWorkspaceManager {
             Assert.assertTrue(projectContextOf(filePath).launchCommand().contains("--enable-native-access=ALL-UNNAMED"),
                     "Fast-run must enable native access like `bal run`, or JDK 24+ warns when a library loads "
                             + "native code");
+            Assert.assertTrue(projectContextOf(filePath).launchCommand()
+                            .contains("--sun-misc-unsafe-memory-access=allow"),
+                    "Fast-run must allow sun.misc.Unsafe memory access like `bal run`, or JDK 24+ warns when a "
+                            + "library uses it");
         } finally {
             executeStopCommand(projectPath);
         }
