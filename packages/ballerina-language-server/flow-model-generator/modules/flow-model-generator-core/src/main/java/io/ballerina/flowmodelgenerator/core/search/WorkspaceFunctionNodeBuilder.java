@@ -168,6 +168,7 @@ class WorkspaceFunctionNodeBuilder {
                                                 Document functionsDoc) {
         List<Item> availableNodes = new ArrayList<>();
         List<Item> availableTools = new ArrayList<>();
+        Document dataMappingsDoc = CommonUtils.dataMappingsDocument(module).orElse(null);
         for (FunctionSymbol function : functions) {
             if (!current && !function.qualifiers().contains(Qualifier.PUBLIC)) {
                 continue;
@@ -176,7 +177,7 @@ class WorkspaceFunctionNodeBuilder {
                     || WorkflowUtil.isWorkflowFunction(function)) {
                 continue;
             }
-            boolean dataMapped = CommonUtils.isDataMapperFunction(function, module);
+            boolean dataMapped = CommonUtils.isDataMapperFunction(function, dataMappingsDoc);
             if (dataMapped && current && position != null && function.getLocation().isPresent()) {
                 LineRange functionRange = function.getLocation().get().lineRange();
                 if (position.fileName().replace('\\', '/').endsWith(functionRange.fileName().replace('\\', '/'))
@@ -219,6 +220,8 @@ class WorkspaceFunctionNodeBuilder {
 
         List<Item> availableNodes = new ArrayList<>();
         List<Item> availableTools = new ArrayList<>();
+        Document dataMappingsDoc = CommonUtils.dataMappingsDocument(
+                targetProject.currentPackage().getDefaultModule()).orElse(null);
 
         for (FunctionSymbol func : filteredFunctions) {
             if (isNaturalExprBodiedFunction(func, functionsDoc) || WorkflowUtil.isActivityFunction(func) ||
@@ -226,8 +229,7 @@ class WorkspaceFunctionNodeBuilder {
                 continue;
             }
 
-            boolean isDataMappedFunction = CommonUtils.isDataMapperFunction(func,
-                    targetProject.currentPackage().getDefaultModule());
+            boolean isDataMappedFunction = CommonUtils.isDataMapperFunction(func, dataMappingsDoc);
             if (isDataMappedFunction && isCurrIntProject) {
                 LineRange fnLineRange = func.getLocation().get().lineRange();
                 if (fnLineRange.fileName().equals(position.fileName()) &&

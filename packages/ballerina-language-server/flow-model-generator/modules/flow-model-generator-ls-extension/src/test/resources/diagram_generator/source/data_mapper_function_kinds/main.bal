@@ -6,4 +6,5 @@ public function main() {
     string name = formatName(person.name);
     string label = util:toLabel(person.age);
     boolean adult = util:isAdult(person.age);
+    Employee fromEmployee = 'from(person);
 }

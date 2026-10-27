@@ -156,6 +156,63 @@
             }
           },
           "enabled": true
+        },
+        {
+          "metadata": {
+            "label": "dm_funcs_proj.util",
+            "description": "",
+            "keywords": []
+          },
+          "items": [
+            {
+              "metadata": {
+                "label": "toLabel",
+                "data": {
+                  "isDataMappedFunction": true,
+                  "isAgentTool": false,
+                  "isIsolatedFunction": false
+                }
+              },
+              "codedata": {
+                "node": "FUNCTION_CALL",
+                "org": "wso2",
+                "module": "dm_funcs_proj.util",
+                "packageName": "dm_funcs_proj",
+                "symbol": "toLabel",
+                "version": "0.1.0",
+                "isGenerated": false,
+                "data": {
+                  "moduleRelation": "SAME_PACKAGE_MODULE",
+                  "moduleKind": "SUBMODULE"
+                }
+              },
+              "enabled": true
+            },
+            {
+              "metadata": {
+                "label": "describe",
+                "data": {
+                  "isDataMappedFunction": false,
+                  "isAgentTool": false,
+                  "isIsolatedFunction": false
+                }
+              },
+              "codedata": {
+                "node": "FUNCTION_CALL",
+                "org": "wso2",
+                "module": "dm_funcs_proj.util",
+                "packageName": "dm_funcs_proj",
+                "symbol": "describe",
+                "version": "0.1.0",
+                "isGenerated": false,
+                "data": {
+                  "moduleRelation": "SAME_PACKAGE_MODULE",
+                  "moduleKind": "SUBMODULE"
+                }
+              },
+              "enabled": true
+            }
+          ]
         }
       ]
     },

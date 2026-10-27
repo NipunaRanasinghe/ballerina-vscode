@@ -1201,19 +1201,45 @@ public class CommonUtils {
      * @return true if the function is a data mapper, false otherwise
      */
     public static boolean isDataMapperFunction(FunctionSymbol functionSymbol, Module module) {
-        if (!isDeclaredInDataMappingsFile(functionSymbol)) {
+        return isDeclaredInDataMappingsFile(functionSymbol)
+                && isDataMapperFunction(functionSymbol, dataMappingsDocument(module).orElse(null));
+    }
+
+    /**
+     * Checks whether the given function symbol is a data mapper declared in the given `data_mappings.bal` document.
+     * Returns false when the symbol location does not resolve to a function with the same name, for example when the
+     * symbol comes from a different snapshot of the document.
+     *
+     * @param functionSymbol  the function symbol
+     * @param dataMappingsDoc the `data_mappings.bal` document of the declaring module, or {@code null} if it has none
+     * @return true if the function is a data mapper, false otherwise
+     */
+    public static boolean isDataMapperFunction(FunctionSymbol functionSymbol, Document dataMappingsDoc) {
+        if (dataMappingsDoc == null || !isDeclaredInDataMappingsFile(functionSymbol)) {
             return false;
         }
-        Optional<Document> dataMappingsDoc = module.documentIds().stream()
+        TextRange textRange = functionSymbol.getLocation().get().textRange();
+        SyntaxTree syntaxTree = dataMappingsDoc.syntaxTree();
+        if (textRange.endOffset() > syntaxTree.rootNode().textRangeWithMinutiae().endOffset()) {
+            return false;
+        }
+        NonTerminalNode node = getNode(syntaxTree, textRange);
+        return node instanceof FunctionDefinitionNode functionDefNode
+                && functionSymbol.nameEquals(functionDefNode.functionName().text())
+                && isDataMapperFunction(functionDefNode);
+    }
+
+    /**
+     * Returns the `data_mappings.bal` document of the given module.
+     *
+     * @param module the module
+     * @return the `data_mappings.bal` document, if the module has one
+     */
+    public static Optional<Document> dataMappingsDocument(Module module) {
+        return module.documentIds().stream()
                 .map(module::document)
                 .filter(document -> document.name().equals(DATA_MAPPINGS_FILE_NAME))
                 .findFirst();
-        if (dataMappingsDoc.isEmpty()) {
-            return false;
-        }
-        NonTerminalNode node = getNode(dataMappingsDoc.get().syntaxTree(),
-                functionSymbol.getLocation().get().textRange());
-        return node.kind() == SyntaxKind.FUNCTION_DEFINITION && isDataMapperFunction((FunctionDefinitionNode) node);
     }
 
     /**
