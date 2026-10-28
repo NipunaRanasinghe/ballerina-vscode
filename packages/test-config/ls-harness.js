@@ -184,6 +184,15 @@ class LsHarness {
             }
             this.pending.clear();
         });
+        // Reject notification waiters on 'close' rather than 'exit': 'close' fires after stdout
+        // has ended, so a notification the LS wrote just before exiting is still dispatched.
+        this.proc.on("close", (code) => {
+            const waiters = this.notificationWaiters;
+            this.notificationWaiters = [];
+            for (const w of waiters) {
+                w.reject(new Error(`LS exited (code ${code}) before sending '${w.method}'`));
+            }
+        });
     }
 
     onData(chunk) {
@@ -267,10 +276,15 @@ class LsHarness {
         });
     }
 
-    // Resolves with the params of the next server notification named `method`.
+    // Resolves with the params of the next server notification named `method`. Rejects on
+    // timeout or when the LS process exits first.
     waitForNotification(method, timeoutMs = this.defaultTimeoutMs) {
         return new Promise((resolve, reject) => {
-            const waiter = { method, resolve: (params) => { clearTimeout(timer); resolve(params); } };
+            const waiter = {
+                method,
+                resolve: (params) => { clearTimeout(timer); resolve(params); },
+                reject: (err) => { clearTimeout(timer); reject(err); },
+            };
             const timer = setTimeout(() => {
                 this.notificationWaiters = this.notificationWaiters.filter((w) => w !== waiter);
                 reject(new Error(`Timeout (${timeoutMs}ms) waiting for notification '${method}'`));

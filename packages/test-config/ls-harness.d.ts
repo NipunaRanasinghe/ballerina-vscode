@@ -50,7 +50,7 @@ export declare class LsHarness {
     start(): void;
     /** Send a request and resolve with its result (rejects on error/timeout/exit). */
     request<T = any>(method: string, params?: unknown, timeoutMs?: number): Promise<T>;
-    /** Resolve with the params of the next server notification named `method` (rejects on timeout). */
+    /** Resolve with the params of the next server notification named `method` (rejects on timeout or LS exit). */
     waitForNotification<T = any>(method: string, timeoutMs?: number): Promise<T>;
     /** Send a notification (no response expected). */
     notify(method: string, params?: unknown): void;
