@@ -23,11 +23,13 @@
 //     Copies every BBE the distribution checks the output of (`verifyOutput` in
 //     examples/index.json) into the LS test resources as a package of its own.
 //
-//   node scripts/fastrun-bbe.js baseline [--bal <bal>] [--jobs <n>] [--only <a,b>] [--out <dir>]
+//   node scripts/fastrun-bbe.js baseline [--workspace] [--bal <bal>] [--jobs <n>] [--only <a,b>] [--out <dir>]
 //     Runs each imported package with `bal run` and checks the output against the BBE's .out
 //     file, with the rule the distribution's testExamples task uses. This is the baseline that
 //     fast run is later compared with. Parallel jobs share the Central cache in ~/.ballerina,
 //     and a package can fail reading a jar another job is writing, so --jobs defaults to 1.
+//     With --workspace, the packages are members of one workspace and each runs from its own folder,
+//     as `bal run` from the workspace root reads `Config.toml` and relative paths from the root.
 
 const { spawn, execFileSync } = require("child_process");
 const fs = require("fs");
@@ -40,7 +42,8 @@ const ORG = "baltest";
 const NAME_PREFIX = "bbe_";
 const RUN_TIMEOUT_MS = 180_000;
 // Lines `bal run` prints around the program's own output, as filtered by testExamples.
-const NOISE = [/^Compiling source$/, /^Running executable$/, /^Picked up JAVA_TOOL_OPTIONS:/, /^HINT/,
+const NOISE = [/^Compiling source( \(UP-TO-DATE\))?$/, /^Running executable$/, /^Resolving workspace dependencies$/,
+    /^Picked up JAVA_TOOL_OPTIONS:/, /^HINT/,
     /^Generating executable$/, new RegExp(`^${ORG}/${NAME_PREFIX}\\w+:0\\.1\\.0$`)];
 
 function importBbes(distDir) {
@@ -112,7 +115,15 @@ function unmatchedLines(run, outFile) {
 async function baseline(options) {
     const bbes = fs.readdirSync(BBE_DIR, { withFileTypes: true }).filter((entry) => entry.isDirectory())
         .map((entry) => entry.name).filter((name) => !options.only || options.only.includes(name));
+    // Run copies, so `target/` and `Dependencies.toml` stay out of the test resources.
     const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastrun-bbe-"));
+    for (const bbe of bbes) {
+        fs.cpSync(path.join(BBE_DIR, bbe), path.join(workDir, bbe), { recursive: true });
+    }
+    if (options.workspace) {
+        fs.writeFileSync(path.join(workDir, "Ballerina.toml"),
+            `[workspace]\npackages = [${bbes.map((bbe) => `"${bbe}"`).join(", ")}]\n`);
+    }
     fs.mkdirSync(options.out, { recursive: true });
     const results = [];
     let next = 0;
@@ -120,9 +131,7 @@ async function baseline(options) {
     async function worker() {
         while (next < bbes.length) {
             const bbe = bbes[next++];
-            // Run a copy, so `target/` and `Dependencies.toml` stay out of the test resources.
             const dir = path.join(workDir, bbe);
-            fs.cpSync(path.join(BBE_DIR, bbe), dir, { recursive: true });
             const flags = ["--offline", ...(bbe === "natural-expressions" ? ["--experimental"] : [])];
             const started = Date.now();
             const run = await runBal(options.bal, dir, flags);
@@ -150,10 +159,12 @@ async function baseline(options) {
 }
 
 function parseOptions(args) {
-    const options = { bal: "bal", jobs: 1, only: null, out: path.join(os.tmpdir(), "fastrun-bbe-baseline") };
+    const options = { bal: "bal", jobs: 1, only: null, out: path.join(os.tmpdir(), "fastrun-bbe-baseline"),
+        workspace: false };
     for (let i = 0; i < args.length; i += 2) {
         const value = args[i + 1];
         switch (args[i]) {
+            case "--workspace": options.workspace = true; i--; break;
             case "--bal": options.bal = value; break;
             case "--jobs": options.jobs = Number(value); break;
             case "--only": options.only = value.split(","); break;
@@ -174,7 +185,7 @@ async function main() {
         return baseline(parseOptions(args));
     }
     console.error("Usage: fastrun-bbe.js import <ballerina-distribution checkout>\n"
-        + "       fastrun-bbe.js baseline [--bal <bal>] [--jobs <n>] [--only <a,b>] [--out <dir>]");
+        + "       fastrun-bbe.js baseline [--workspace] [--bal <bal>] [--jobs <n>] [--only <a,b>] [--out <dir>]");
     return 2;
 }
 

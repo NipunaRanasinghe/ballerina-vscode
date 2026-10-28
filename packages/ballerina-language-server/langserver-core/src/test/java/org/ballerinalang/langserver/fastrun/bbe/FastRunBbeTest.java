@@ -28,6 +28,8 @@ import org.ballerinalang.langserver.workspace.BallerinaWorkspaceManager;
 import org.eclipse.lsp4j.LogTraceParams;
 import org.mockito.Mockito;
 import org.testng.Assert;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -36,8 +38,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -51,7 +55,8 @@ import static org.awaitility.Awaitility.await;
 /**
  * Runs each Ballerina by Example (BBE) package in src/test/resources/fastrun/bbe with fast run and checks its output
  * against the BBE's .out file, with the rule `bal run` passes in the distribution's testExamples task and in
- * scripts/fastrun-bbe.js. The fastRunBbeTest task runs it against a real Ballerina distribution.
+ * scripts/fastrun-bbe.js. Each BBE runs once as a package of its own and once as a member of a workspace. The
+ * fastRunBbeTest task runs it against a real Ballerina distribution.
  *
  * @since 1.10.0
  */
@@ -72,26 +77,78 @@ public class FastRunBbeTest {
     private static final String PACKAGE_MODULE = "baltest\\.bbe_(\\w+)\\.0";
     private static final Pattern ERROR_MODULE = Pattern.compile(" moduleName: " + PACKAGE_MODULE + " ");
     private static final Pattern FRAME_MODULE = Pattern.compile(PACKAGE_MODULE + ":");
+    // A language server holding one workspace of all the BBEs runs out of the test task's heap, and real workspaces
+    // are far smaller, so the BBEs are split into workspaces of this many members.
+    private static final int WORKSPACE_SIZE = 10;
+
+    private Path workspacesPath;
+    private final Map<String, Path> memberPaths = new HashMap<>();
+    // One workspace manager holds a workspace for all its members' runs, as the editor does.
+    private Path currentWorkspace;
+    private BallerinaWorkspaceManager workspaceManager;
+
+    @BeforeClass
+    public void createWorkspaces() throws IOException {
+        // Run copies, so the runs' target/ and Dependencies.toml stay out of the test resources.
+        workspacesPath = Files.createTempDirectory("fastrun-bbe-workspaces-");
+        List<String> bbes = selectedBbes();
+        for (int start = 0; start < bbes.size(); start += WORKSPACE_SIZE) {
+            List<String> members = bbes.subList(start, Math.min(start + WORKSPACE_SIZE, bbes.size()));
+            Path workspacePath = workspacesPath.resolve("workspace" + start / WORKSPACE_SIZE);
+            for (String bbe : members) {
+                memberPaths.put(bbe, workspacePath.resolve(bbe));
+                FileUtils.copyDirectory(BBE_DIRECTORY.resolve(bbe).toFile(), workspacePath.resolve(bbe).toFile());
+            }
+            Files.writeString(workspacePath.resolve("Ballerina.toml"), "[workspace]\npackages = ["
+                    + members.stream().map(bbe -> "\"" + bbe + "\"").collect(Collectors.joining(", ")) + "]\n");
+        }
+    }
+
+    @AfterClass(alwaysRun = true)
+    public void deleteWorkspaces() {
+        FileUtils.deleteQuietly(workspacesPath.toFile());
+    }
 
     @DataProvider(name = "bbes")
     public Object[][] bbes() throws IOException {
-        String only = System.getProperty(ONLY_PROPERTY, "");
-        Set<String> selected = Arrays.stream(only.split(",")).filter(name -> !name.isBlank())
-                .collect(Collectors.toSet());
-        try (Stream<Path> dirs = Files.list(BBE_DIRECTORY)) {
-            return dirs.filter(Files::isDirectory).map(dir -> dir.getFileName().toString())
-                    .filter(name -> selected.isEmpty() || selected.contains(name))
-                    .sorted().map(name -> new Object[]{name}).toArray(Object[][]::new);
-        }
+        return selectedBbes().stream().map(name -> new Object[]{name}).toArray(Object[][]::new);
     }
 
     @Test(dataProvider = "bbes")
     public void testBbeOutput(String bbe) throws Exception {
-        // Run a copy, so the run's target/ and Dependencies.toml stay out of the test resources.
         Path projectPath = Files.createTempDirectory("fastrun-bbe-").resolve(bbe);
         FileUtils.copyDirectory(BBE_DIRECTORY.resolve(bbe).toFile(), projectPath.toFile());
+        try {
+            assertOutput(new BallerinaWorkspaceManager(new LanguageServerContextImpl()), projectPath, bbe);
+        } finally {
+            FileUtils.deleteQuietly(projectPath.getParent().toFile());
+        }
+    }
+
+    @Test(dataProvider = "bbes")
+    public void testBbeOutputInWorkspace(String bbe) throws Exception {
+        Path memberPath = memberPaths.get(bbe);
+        if (!memberPath.getParent().equals(currentWorkspace)) {
+            currentWorkspace = memberPath.getParent();
+            workspaceManager = new BallerinaWorkspaceManager(new LanguageServerContextImpl());
+        }
+        assertOutput(workspaceManager, memberPath, bbe);
+        Assert.assertTrue(workspaceManager.project(memberPath.resolve(bbe.replace('-', '_') + ".bal")).orElseThrow()
+                .workspaceProject().isPresent(), bbe + " must be loaded as a workspace member");
+    }
+
+    private static List<String> selectedBbes() throws IOException {
+        Set<String> selected = Arrays.stream(System.getProperty(ONLY_PROPERTY, "").split(","))
+                .filter(name -> !name.isBlank()).collect(Collectors.toSet());
+        try (Stream<Path> dirs = Files.list(BBE_DIRECTORY)) {
+            return dirs.filter(Files::isDirectory).map(dir -> dir.getFileName().toString())
+                    .filter(name -> selected.isEmpty() || selected.contains(name)).sorted().toList();
+        }
+    }
+
+    private static void assertOutput(BallerinaWorkspaceManager workspaceManager, Path projectPath, String bbe)
+            throws Exception {
         String fileName = bbe.replace('-', '_');
-        BallerinaWorkspaceManager workspaceManager = new BallerinaWorkspaceManager(new LanguageServerContextImpl());
         Queue<LogTraceParams> logs = new ConcurrentLinkedQueue<>();
         try {
             Path filePath = projectPath.resolve(fileName + ".bal");
@@ -114,7 +171,6 @@ public class FastRunBbeTest {
                     + "\n--- stdout\n" + stdout + "\n--- stderr\n" + stderr);
         } finally {
             workspaceManager.stop(projectPath);
-            FileUtils.deleteQuietly(projectPath.getParent().toFile());
         }
     }
 
