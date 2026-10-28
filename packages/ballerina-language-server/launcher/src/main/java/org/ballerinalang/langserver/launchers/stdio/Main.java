@@ -57,7 +57,8 @@ public final class Main {
     }
 
     /**
-     * Starts the server and calls {@code exit} once the input stream closes.
+     * Starts the server and calls {@code exit} once the input stream closes, with status 0 if the client sent
+     * {@code shutdown} first and 1 otherwise.
      * <p>
      * A client that disconnects without sending the LSP {@code exit} notification only closes the stream. Exiting
      * explicitly at that point stops a non-daemon thread from keeping the JVM running with no client
@@ -77,7 +78,8 @@ public final class Main {
         int status = 1;
         try {
             startListening.get();
-            status = 0;
+            // As for LSP exit: 0 only if the client sent shutdown before closing the stream.
+            status = server.getExitStatus();
         } catch (ExecutionException e) {
             // lsp4j logs exceptions from the stream and completes normally; only an Error from the listener gets here.
             // Print the trace here: with System::exit, the rethrow below never reaches the default handler.

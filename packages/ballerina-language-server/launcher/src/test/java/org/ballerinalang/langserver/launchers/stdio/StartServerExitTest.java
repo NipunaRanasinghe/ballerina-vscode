@@ -27,6 +27,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -34,6 +35,7 @@ import java.util.concurrent.ExecutionException;
 /**
  * Tests that {@link Main#startServer} exits the process when it stops listening to the client, including when the
  * client closes the input stream without sending the LSP {@code exit} notification (wso2/product-integrator#2854).
+ * As for {@code exit}, the status is 0 only if the client sent {@code shutdown} first.
  */
 public class StartServerExitTest {
 
@@ -50,11 +52,25 @@ public class StartServerExitTest {
         System.setOut(originalOut);
     }
 
-    @Test(description = "Closing the input stream must exit the process with status 0", timeOut = 60_000)
+    @Test(description = "Closing the input stream without shutdown must exit the process with status 1",
+            timeOut = 60_000)
     public void testExitsWhenInputStreamCloses() throws Exception {
         List<Integer> exitCodes = new ArrayList<>();
 
         Main.startServer(new ByteArrayInputStream(new byte[0]), new ByteArrayOutputStream(), exitCodes::add);
+
+        Assert.assertEquals(exitCodes, List.of(1));
+    }
+
+    @Test(description = "Closing the input stream after shutdown must exit the process with status 0",
+            timeOut = 60_000)
+    public void testExitsCleanlyWhenInputStreamClosesAfterShutdown() throws Exception {
+        List<Integer> exitCodes = new ArrayList<>();
+        String shutdown = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"shutdown\"}";
+        byte[] frame = ("Content-Length: " + shutdown.length() + "\r\n\r\n" + shutdown)
+                .getBytes(StandardCharsets.UTF_8);
+
+        Main.startServer(new ByteArrayInputStream(frame), new ByteArrayOutputStream(), exitCodes::add);
 
         Assert.assertEquals(exitCodes, List.of(0));
     }
