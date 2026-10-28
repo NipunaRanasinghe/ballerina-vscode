@@ -23,8 +23,9 @@
 // a Ballerina distribution or a Java 25+ JDK in the distribution is missing.
 //
 // These tests check the process, not the cause: the launcher's System.exit makes both pass
-// whatever threads are left. The daemon-thread fix for the debouncers is checked by
-// ThreadLeakTest in the LS's own Gradle suites.
+// whatever threads are left. StartServerExitTest in the launcher module checks the exit
+// statuses on every PR. This suite also covers what that unit test cannot: that main() passes
+// System::exit, and that the real JVM exits, which a hanging shutdown hook would prevent.
 
 import * as fs from "fs";
 import * as path from "path";
