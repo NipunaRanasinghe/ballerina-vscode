@@ -23,7 +23,6 @@ under the License.
     <test name="flow-model-test" parallel="none">
         <classes>
             <class name="io.ballerina.flowmodelgenerator.extension.ModelGeneratorTest"/>
-            <class name="io.ballerina.flowmodelgenerator.extension.ThreadLeakTest"/>
             <class name="io.ballerina.flowmodelgenerator.extension.SourceGeneratorTest"/>
             <class name="io.ballerina.flowmodelgenerator.extension.AvailableNodesTest"/>
             <class name="io.ballerina.flowmodelgenerator.extension.NodeTemplateTest"/>

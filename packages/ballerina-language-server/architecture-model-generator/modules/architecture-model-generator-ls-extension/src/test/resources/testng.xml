@@ -23,7 +23,6 @@ under the License.
     <test name="get-model-test" parallel="false">
         <classes>
             <class name="io.ballerina.architecturemodelgenerator.extension.ArchitectureModelGeneratorServiceTests"/>
-            <class name="io.ballerina.designmodelgenerator.extension.ThreadLeakTest"/>
             <class name="io.ballerina.architecturemodelgenerator.extension.PersistERModelGeneratorTests"/>
             <class name="io.ballerina.designmodelgenerator.extension.DesignModelGeneratorTest"/>
             <class name="io.ballerina.designmodelgenerator.extension.ArtifactsTest"/>

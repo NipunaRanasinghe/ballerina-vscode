@@ -39,17 +39,26 @@ import java.util.concurrent.ExecutionException;
  */
 public class StartServerExitTest {
 
+    private static final String ENABLE_OUTPUT_STREAM = "enableOutputStream";
+
     private PrintStream originalOut;
+    private String originalProperty;
 
     @BeforeMethod
-    public void captureStdout() {
+    public void captureGlobalState() {
         originalOut = System.out;
+        originalProperty = System.getProperty(ENABLE_OUTPUT_STREAM);
     }
 
     @AfterMethod
-    public void restoreStdout() {
-        // startServer redirects System.out to System.err.
+    public void restoreGlobalState() {
+        // startServer redirects System.out to System.err and sets enableOutputStream.
         System.setOut(originalOut);
+        if (originalProperty == null) {
+            System.clearProperty(ENABLE_OUTPUT_STREAM);
+        } else {
+            System.setProperty(ENABLE_OUTPUT_STREAM, originalProperty);
+        }
     }
 
     @Test(description = "Closing the input stream without shutdown must exit the process with status 1",
@@ -78,7 +87,9 @@ public class StartServerExitTest {
     @Test(description = "An error that ends the listener must exit the process with status 1", timeOut = 60_000)
     public void testExitsWhenListenerFails() {
         List<Integer> exitCodes = new ArrayList<>();
-        // lsp4j logs exceptions from the stream and ends normally, so only an Error fails the listening future.
+        // lsp4j logs exceptions from the stream and ends normally, so only an Error fails the listening future
+        // (ConcurrentMessageProcessor.run catches Exception). If an lsp4j upgrade also catches Error, this test fails
+        // and the comment on the catch block in Main#startServer must be updated with it.
         InputStream failing = new InputStream() {
             @Override
             public int read() {

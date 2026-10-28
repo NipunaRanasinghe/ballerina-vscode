@@ -63,6 +63,10 @@ public final class Main {
      * A client that disconnects without sending the LSP {@code exit} notification only closes the stream. Exiting
      * explicitly at that point stops a non-daemon thread from keeping the JVM running with no client
      * (wso2/product-integrator#2854).
+     * <p>
+     * Unlike {@link BallerinaLanguageServer#exit()}, this path does not call the extended services'
+     * {@code shutdown()} and {@code exit(int)}, because the client never sent those messages. A service that must
+     * clean up when the client disappears has to register a JVM shutdown hook.
      */
     static void startServer(InputStream in, OutputStream out, IntConsumer exit)
             throws InterruptedException, ExecutionException {
