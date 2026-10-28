@@ -87,8 +87,9 @@ async function useDebouncers(ls: LsHarness): Promise<void> {
     expect(signatureHelp).toBeDefined();
 }
 
-function expectCleanExit(proc: ChildProcess): void {
-    expect({ code: proc.exitCode, signal: proc.signalCode }).toEqual({ code: 0, signal: null });
+// As LSP requires: status 0 only if the client sent shutdown before going away, else 1.
+function expectExitStatus(proc: ChildProcess, code: number): void {
+    expect({ code: proc.exitCode, signal: proc.signalCode }).toEqual({ code, signal: null });
 }
 
 describeReliability("Language server process exit (reliability)", () => {
@@ -117,7 +118,7 @@ describeReliability("Language server process exit (reliability)", () => {
         await server.request("shutdown");
         server.notify("exit");
         expect(await waitForExit(server.proc!, EXIT_TIMEOUT_MS)).toBe(true);
-        expectCleanExit(server.proc!);
+        expectExitStatus(server.proc!, 0);
     });
 
     it("exits when the client closes stdin without sending exit", async () => {
@@ -125,6 +126,6 @@ describeReliability("Language server process exit (reliability)", () => {
         await useDebouncers(server);
         server.proc!.stdin!.end();
         expect(await waitForExit(server.proc!, EXIT_TIMEOUT_MS)).toBe(true);
-        expectCleanExit(server.proc!);
+        expectExitStatus(server.proc!, 1);
     });
 });
