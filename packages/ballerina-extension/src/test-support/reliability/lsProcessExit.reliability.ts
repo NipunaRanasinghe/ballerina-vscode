@@ -20,7 +20,11 @@
 // its client goes away, whether or not the client sends LSP `exit`
 // (wso2/product-integrator#2854). Runs the locally built LS jar (resolveLocalLsCommand), so it
 // checks this repo's LS rather than the one bundled with the distribution. Skips when the jar,
-// a Ballerina distribution or a JDK is missing.
+// a Ballerina distribution or a Java 25+ JDK in the distribution is missing.
+//
+// These tests check the process, not the cause: the launcher's System.exit makes both pass
+// whatever threads are left. The daemon-thread fix for the debouncers is checked by
+// ThreadLeakTest in the LS's own Gradle suites.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -38,7 +42,7 @@ const EXIT_TIMEOUT_MS = 15_000;
 
 if (!launch) {
     // eslint-disable-next-line no-console
-    console.warn("[reliability] No local LS jar, Ballerina distribution or JDK found; skipping.");
+    console.warn("[reliability] No local LS jar, Ballerina distribution or Java 25+ JDK found; skipping.");
 }
 
 const describeReliability = launch ? describe : describe.skip;
@@ -58,7 +62,8 @@ function waitForExit(proc: ChildProcess, timeoutMs: number): Promise<boolean> {
 
 // Edits main.bal, which creates ArtifactGenerationDebouncer (confirmed by its publishArtifacts
 // notification), and sends an expression editor request, which creates the expression editor
-// Debouncer. These are the two schedulers whose threads kept the JVM alive in #2854.
+// Debouncer. These are the two schedulers whose threads kept the JVM alive in #2854, so the
+// process exits with them running.
 async function useDebouncers(ls: LsHarness): Promise<void> {
     await ls.initialize(projectRoot);
     const text = fs.readFileSync(mainBal, "utf8");
@@ -104,6 +109,8 @@ describeReliability("Language server process exit (reliability)", () => {
         return ls;
     }
 
+    // BallerinaLanguageServer.exit() already called System.exit before #2854 was fixed; this
+    // case keeps that path from regressing.
     it("exits after LSP shutdown and exit", async () => {
         const server = startLs();
         await useDebouncers(server);

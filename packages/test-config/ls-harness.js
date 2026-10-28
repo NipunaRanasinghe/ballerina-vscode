@@ -36,8 +36,8 @@
 // ballerina-extension/src/utils/server/server.ts). Jar resolution order:
 //   1. $BAL_LS_JAR
 //   2. the newest packages/ballerina-language-server/build/ballerina-language-server-*.jar
-// The distribution comes from `bal home` and the JDK from its dependencies/ directory
-// (falling back to $JAVA_HOME). Returns null when any of these is missing.
+// The distribution comes from `bal home` and the JDK from its dependencies/ directory, as in
+// the extension. Returns null when any of these is missing or the JDK is older than Java 25.
 
 "use strict";
 
@@ -88,21 +88,34 @@ function resolveLocalLsJar() {
     return newestMatch(buildDir, /^ballerina-language-server-.*(?<!-sources|-javadoc)\.jar$/);
 }
 
+// The LS jar is compiled for this Java release. Keep in sync with REQUIRED_JDK_MAJOR_VERSION in
+// ballerina-extension/src/utils/server/server.ts.
+const REQUIRED_JDK_MAJOR_VERSION = 25;
+
+function highestJdkDir(depsDir) {
+    if (!fs.existsSync(depsDir)) {
+        return null;
+    }
+    const jdks = fs.readdirSync(depsDir).filter((d) => /^jdk-.+-jre$/.test(d))
+        .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    return jdks.length ? path.join(depsDir, jdks[0]) : null;
+}
+
+// Same lookup as resolveLanguageServerJdkDir in server.ts: the highest jdk-*-jre in the
+// dependencies/ directory beside distributions/, else in its parent. Returns null when that JDK is
+// older than the LS needs, so the suite skips instead of failing with UnsupportedClassVersionError.
 function resolveJava(ballerinaHome) {
-    const javaName = isWindows ? "java.exe" : "java";
     const baseHome = ballerinaHome.includes("distributions")
         ? ballerinaHome.substring(0, ballerinaHome.indexOf("distributions"))
         : ballerinaHome;
-    const depsDir = path.join(baseHome, "dependencies");
-    const jdks = fs.existsSync(depsDir)
-        ? fs.readdirSync(depsDir).filter((d) => /^jdk-.+-jre$/.test(d))
-            .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
-        : [];
-    const candidates = [
-        ...jdks.map((d) => path.join(depsDir, d, "bin", javaName)),
-        process.env.JAVA_HOME && path.join(process.env.JAVA_HOME, "bin", javaName),
-    ];
-    return candidates.find((c) => c && fs.existsSync(c)) ?? null;
+    const jdkDir = highestJdkDir(path.join(baseHome, "dependencies"))
+        ?? highestJdkDir(path.join(path.dirname(baseHome), "dependencies"));
+    if (!jdkDir) {
+        return null;
+    }
+    const major = parseInt(path.basename(jdkDir).match(/^jdk-(\d+)/)?.[1] ?? "0", 10);
+    const java = path.join(jdkDir, "bin", isWindows ? "java.exe" : "java");
+    return major >= REQUIRED_JDK_MAJOR_VERSION && fs.existsSync(java) ? java : null;
 }
 
 function resolveLocalLsCommand() {
@@ -113,7 +126,7 @@ function resolveLocalLsCommand() {
     }
     let ballerinaHome;
     try {
-        const out = execFileSync(bal, ["home"], { encoding: "utf8", shell: isWindows });
+        const out = execFileSync(bal, ["home"], { encoding: "utf8", shell: isWindows, timeout: 30_000 });
         ballerinaHome = out.trim().split(/\r?\n/).pop().trim();
     } catch {
         return null;
@@ -187,6 +200,7 @@ class LsHarness {
         // Reject notification waiters on 'close' rather than 'exit': 'close' fires after stdout
         // has ended, so a notification the LS wrote just before exiting is still dispatched.
         this.proc.on("close", (code) => {
+            this.closeCode = code;
             const waiters = this.notificationWaiters;
             this.notificationWaiters = [];
             for (const w of waiters) {
@@ -280,6 +294,11 @@ class LsHarness {
     // timeout or when the LS process exits first.
     waitForNotification(method, timeoutMs = this.defaultTimeoutMs) {
         return new Promise((resolve, reject) => {
+            // 'close' has already fired, so no waiter registered now would ever be rejected by it.
+            if (this.closeCode !== undefined) {
+                reject(new Error(`LS exited (code ${this.closeCode}) before sending '${method}'`));
+                return;
+            }
             const waiter = {
                 method,
                 resolve: (params) => { clearTimeout(timer); resolve(params); },
