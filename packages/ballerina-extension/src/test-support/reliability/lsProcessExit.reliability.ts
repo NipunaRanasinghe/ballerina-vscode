@@ -59,9 +59,7 @@ function waitForExit(proc: ChildProcess, timeoutMs: number): Promise<boolean> {
 // Edits main.bal, which creates ArtifactGenerationDebouncer (confirmed by its publishArtifacts
 // notification), and sends an expression editor request, which creates the expression editor
 // Debouncer. These are the two schedulers whose threads kept the JVM alive in #2854.
-async function startAndUseDebouncers(): Promise<LsHarness> {
-    const ls = new LsHarness(launch!);
-    ls.start();
+async function useDebouncers(ls: LsHarness): Promise<void> {
     await ls.initialize(projectRoot);
     const text = fs.readFileSync(mainBal, "utf8");
     const artifactsPublished = ls.waitForNotification("designModelService/publishArtifacts");
@@ -82,7 +80,10 @@ async function startAndUseDebouncers(): Promise<LsHarness> {
         signatureHelpContext: { triggerKind: "Invoked", isRetrigger: false },
     });
     expect(signatureHelp).toBeDefined();
-    return ls;
+}
+
+function expectCleanExit(proc: ChildProcess): void {
+    expect({ code: proc.exitCode, signal: proc.signalCode }).toEqual({ code: 0, signal: null });
 }
 
 describeReliability("Language server process exit (reliability)", () => {
@@ -96,16 +97,27 @@ describeReliability("Language server process exit (reliability)", () => {
         ls = undefined;
     });
 
+    // Assigns `ls` before the first await, so afterEach can kill the process if setup fails.
+    function startLs(): LsHarness {
+        ls = new LsHarness(launch!);
+        ls.start();
+        return ls;
+    }
+
     it("exits after LSP shutdown and exit", async () => {
-        ls = await startAndUseDebouncers();
-        await ls.request("shutdown");
-        ls.notify("exit");
-        expect(await waitForExit(ls.proc!, EXIT_TIMEOUT_MS)).toBe(true);
+        const server = startLs();
+        await useDebouncers(server);
+        await server.request("shutdown");
+        server.notify("exit");
+        expect(await waitForExit(server.proc!, EXIT_TIMEOUT_MS)).toBe(true);
+        expectCleanExit(server.proc!);
     });
 
     it("exits when the client closes stdin without sending exit", async () => {
-        ls = await startAndUseDebouncers();
-        ls.proc!.stdin!.end();
-        expect(await waitForExit(ls.proc!, EXIT_TIMEOUT_MS)).toBe(true);
+        const server = startLs();
+        await useDebouncers(server);
+        server.proc!.stdin!.end();
+        expect(await waitForExit(server.proc!, EXIT_TIMEOUT_MS)).toBe(true);
+        expectCleanExit(server.proc!);
     });
 });
