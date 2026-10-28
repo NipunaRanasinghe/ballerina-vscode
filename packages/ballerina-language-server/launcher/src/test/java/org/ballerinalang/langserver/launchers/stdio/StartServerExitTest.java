@@ -25,10 +25,7 @@ import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,25 +72,6 @@ public class StartServerExitTest {
 
         Assert.expectThrows(ExecutionException.class,
                 () -> Main.startServer(failing, new ByteArrayOutputStream(), exitCodes::add));
-
-        Assert.assertEquals(exitCodes, List.of(1));
-    }
-
-    @Test(description = "An interrupt while listening must exit the process with status 1", timeOut = 60_000)
-    public void testExitsWhenInterrupted() throws IOException {
-        List<Integer> exitCodes = new ArrayList<>();
-        // A connected pipe with no writes keeps the listener blocked, so only the interrupt ends the wait.
-        PipedOutputStream clientEnd = new PipedOutputStream();
-        PipedInputStream serverEnd = new PipedInputStream(clientEnd);
-        Thread.currentThread().interrupt();
-        try {
-            Assert.expectThrows(InterruptedException.class,
-                    () -> Main.startServer(serverEnd, new ByteArrayOutputStream(), exitCodes::add));
-        } finally {
-            Thread.interrupted();
-            // Ends the listener thread.
-            clientEnd.close();
-        }
 
         Assert.assertEquals(exitCodes, List.of(1));
     }

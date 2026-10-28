@@ -44,12 +44,16 @@ public final class Main {
         LogManager.getLogManager().reset();
         Logger globalLogger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
         globalLogger.setLevel(Level.OFF);
-        startServer(System.in, System.out);
+        startServer(System.in, System.out, System::exit);
     }
 
+    /**
+     * Starts the server and returns once the input stream closes. Does not exit the JVM, so an embedding host keeps
+     * control of its own process.
+     */
     public static void startServer(InputStream in, OutputStream out)
             throws InterruptedException, ExecutionException {
-        startServer(in, out, System::exit);
+        startServer(in, out, status -> { });
     }
 
     /**
@@ -69,19 +73,20 @@ public final class Main {
         ExtendedLanguageClient client = launcher.getRemoteProxy();
         server.connect(client);
         Future<?> startListening = launcher.startListening();
+        // Any way out of get() other than a normal return exits with status 1.
+        int status = 1;
         try {
             startListening.get();
+            status = 0;
         } catch (ExecutionException e) {
             // lsp4j logs exceptions from the stream and completes normally; only an Error from the listener gets here.
-            System.err.println("Language server listener failed: " + e.getCause());
-            exit.accept(1);
+            // Print the trace here: with System::exit, the rethrow below never reaches the default handler.
+            System.err.println("Language server listener failed:");
+            e.getCause().printStackTrace(System.err);
             throw e;
-        } catch (InterruptedException e) {
-            System.err.println("Language server was interrupted while listening to the input stream");
-            exit.accept(1);
-            throw e;
+        } finally {
+            exit.accept(status);
         }
-        exit.accept(0);
     }
 
     /**

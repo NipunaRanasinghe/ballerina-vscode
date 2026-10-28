@@ -22,7 +22,6 @@ import org.testng.Assert;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -53,7 +52,6 @@ public class ThreadLeakTest {
         List<String> leaked = Thread.getAllStackTraces().entrySet().stream()
                 .filter(entry -> !threadsBeforeSuite.contains(entry.getKey().threadId()))
                 .filter(entry -> !entry.getKey().isDaemon())
-                .filter(entry -> entry.getKey().getState() == Thread.State.WAITING)
                 .filter(entry -> isIdlePoolWorker(entry.getValue()))
                 .map(entry -> entry.getKey().getName())
                 .toList();
@@ -62,10 +60,16 @@ public class ThreadLeakTest {
                 "daemon thread factory: " + leaked);
     }
 
-    // An idle worker blocks in ThreadPoolExecutor.getTask; a WAITING state means it has no keep-alive timeout.
+    // An idle worker blocks in ThreadPoolExecutor.getTask. A core worker calls the queue's take(), which has no
+    // timeout; a worker that can time out calls poll(). The thread state does not tell them apart: a scheduler's
+    // core worker is TIMED_WAITING while a task, even a cancelled one, is still queued.
     private static boolean isIdlePoolWorker(StackTraceElement[] stack) {
-        return Arrays.stream(stack).anyMatch(frame ->
-                "java.util.concurrent.ThreadPoolExecutor".equals(frame.getClassName()) &&
-                        "getTask".equals(frame.getMethodName()));
+        for (int i = 1; i < stack.length; i++) {
+            if ("java.util.concurrent.ThreadPoolExecutor".equals(stack[i].getClassName()) &&
+                    "getTask".equals(stack[i].getMethodName())) {
+                return "take".equals(stack[i - 1].getMethodName());
+            }
+        }
+        return false;
     }
 }
