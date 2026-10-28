@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_destructure_records_using_query"
+version = "0.1.0"

@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_named_workers_and_futures"
+version = "0.1.0"

@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_io_strings"
+version = "0.1.0"

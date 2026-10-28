@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_json_to_record_with_projection"
+version = "0.1.0"

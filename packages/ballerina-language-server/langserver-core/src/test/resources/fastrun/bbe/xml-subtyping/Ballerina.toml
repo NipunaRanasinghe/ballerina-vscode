@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_xml_subtyping"
+version = "0.1.0"

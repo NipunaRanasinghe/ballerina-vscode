@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_run_strands_safely_on_separate_threads"
+version = "0.1.0"

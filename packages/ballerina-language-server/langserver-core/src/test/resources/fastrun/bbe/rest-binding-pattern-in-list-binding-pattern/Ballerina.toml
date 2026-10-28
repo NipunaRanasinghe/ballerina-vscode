@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_rest_binding_pattern_in_list_binding_pattern"
+version = "0.1.0"

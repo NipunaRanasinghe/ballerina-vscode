@@ -130,10 +130,48 @@ tasks.register('fastRunPluginTest', Test) {
     useTestNG()
     filter {
         includeTestsMatching 'org.ballerinalang.langserver.fastrun.*'
+        excludeTestsMatching 'org.ballerinalang.langserver.fastrun.bbe.*'
     }
     // Set at execution time so it wins over the shared home every Test task is configured with.
     doFirst {
         environment "BALLERINA_HOME_DIR", fastRunPluginHome.absolutePath
+    }
+}
+
+// FastRunBbeTest runs the BBE packages in src/test/resources/fastrun/bbe with fast run. It needs a real Ballerina
+// distribution for the standard libraries the BBEs import, so it is not part of `test`:
+//   ./gradlew :langserver-core:fastRunBbeTest -PballerinaDistribution=<distribution dir> [-Pbbes=<a,b>]
+// Packages resolve offline from that distribution and ~/.ballerina, as `bal run --offline` does in the baseline
+// (scripts/fastrun-bbe.js), so both runs see the same package versions.
+tasks.register('fastRunBbeTest', Test) {
+    description = 'Runs the BBE packages with fast run against a Ballerina distribution'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    dependsOn copyRuntime
+    def distribution = providers.gradleProperty('ballerinaDistribution')
+    systemProperty "ballerina.home", distribution.getOrElse('')
+    systemProperty "fastrun.bbe.only", providers.gradleProperty('bbes').getOrElse('')
+    systemProperty "org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog"
+    testLogging {
+        showStackTraces = true
+        events "passed", "failed"
+        exceptionFormat "full"
+    }
+    jacoco {
+        enabled = false
+    }
+    useTestNG()
+    filter {
+        includeTestsMatching 'org.ballerinalang.langserver.fastrun.bbe.*'
+    }
+    doFirst {
+        if (!distribution.isPresent()) {
+            throw new GradleException('Set -PballerinaDistribution to a Ballerina distribution directory')
+        }
+        // Set at execution time so it wins over the build-owned home every Test task is configured with.
+        environment "BALLERINA_HOME_DIR",
+                System.getenv('BALLERINA_HOME_DIR') ?: "${System.getProperty('user.home')}/.ballerina"
     }
 }
 

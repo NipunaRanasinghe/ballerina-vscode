@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_binding_patterns"
+version = "0.1.0"

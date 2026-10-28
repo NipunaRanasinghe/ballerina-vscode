@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_joining_iterable_objects"
+version = "0.1.0"

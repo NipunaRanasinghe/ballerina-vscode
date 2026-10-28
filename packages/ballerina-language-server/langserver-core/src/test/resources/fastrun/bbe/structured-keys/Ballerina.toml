@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_structured_keys"
+version = "0.1.0"

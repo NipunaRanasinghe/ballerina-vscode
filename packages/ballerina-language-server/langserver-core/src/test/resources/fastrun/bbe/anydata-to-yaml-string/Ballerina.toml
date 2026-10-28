@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_anydata_to_yaml_string"
+version = "0.1.0"

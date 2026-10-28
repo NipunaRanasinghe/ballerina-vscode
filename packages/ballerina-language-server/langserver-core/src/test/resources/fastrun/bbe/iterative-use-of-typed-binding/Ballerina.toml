@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_iterative_use_of_typed_binding"
+version = "0.1.0"

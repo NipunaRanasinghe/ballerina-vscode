@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_error_reporting"
+version = "0.1.0"

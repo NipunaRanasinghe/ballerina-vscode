@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_binary_data"
+version = "0.1.0"

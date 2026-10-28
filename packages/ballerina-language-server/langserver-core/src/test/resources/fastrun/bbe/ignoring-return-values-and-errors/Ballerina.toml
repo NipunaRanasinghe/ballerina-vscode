@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_ignoring_return_values_and_errors"
+version = "0.1.0"

@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_isolated_functions"
+version = "0.1.0"

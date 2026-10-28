@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_querying_with_streams"
+version = "0.1.0"

@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_xml_templates_and_query"
+version = "0.1.0"

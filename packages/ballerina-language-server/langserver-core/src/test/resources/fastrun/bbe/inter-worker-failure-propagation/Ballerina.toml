@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_inter_worker_failure_propagation"
+version = "0.1.0"

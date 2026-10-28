@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_object_value_from_class_definition"
+version = "0.1.0"

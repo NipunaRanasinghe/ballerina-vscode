@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "bbe_error_binding_pattern"
+version = "0.1.0"
