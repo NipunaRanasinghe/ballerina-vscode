@@ -140,7 +140,7 @@ tasks.register('fastRunPluginTest', Test) {
 
 // FastRunBbeTest runs the BBE packages in src/test/resources/fastrun/bbe with fast run. It needs a real Ballerina
 // distribution for the standard libraries the BBEs import, so it is not part of `test`:
-//   ./gradlew :langserver-core:fastRunBbeTest -PballerinaDistribution=<distribution dir> [-Pbbes=<a,b>]
+//   ./gradlew :langserver-core:fastRunBbeTest -PballerinaDistribution=<distribution dir> [-Pbbes=<a,b>] [-PbbeNetwork]
 // Packages resolve offline from that distribution and ~/.ballerina, as `bal run --offline` does in the baseline
 // (scripts/fastrun-bbe.js), so both runs see the same package versions.
 tasks.register('fastRunBbeTest', Test) {
@@ -152,10 +152,11 @@ tasks.register('fastRunBbeTest', Test) {
     def distribution = providers.gradleProperty('ballerinaDistribution')
     systemProperty "ballerina.home", distribution.getOrElse('')
     systemProperty "fastrun.bbe.only", providers.gradleProperty('bbes').getOrElse('')
+    systemProperty "fastrun.bbe.network", providers.gradleProperty('bbeNetwork').isPresent()
     systemProperty "org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog"
     testLogging {
         showStackTraces = true
-        events "passed", "failed"
+        events "passed", "skipped", "failed"
         exceptionFormat "full"
     }
     jacoco {

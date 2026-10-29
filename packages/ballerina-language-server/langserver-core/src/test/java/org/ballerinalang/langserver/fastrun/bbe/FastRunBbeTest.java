@@ -28,6 +28,7 @@ import org.ballerinalang.langserver.workspace.BallerinaWorkspaceManager;
 import org.eclipse.lsp4j.LogTraceParams;
 import org.mockito.Mockito;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
@@ -64,12 +65,17 @@ public class FastRunBbeTest {
 
     private static final Path BBE_DIRECTORY = Path.of("src/test/resources/fastrun/bbe");
     private static final String ONLY_PROPERTY = "fastrun.bbe.only";
+    private static final String NETWORK_PROPERTY = "fastrun.bbe.network";
+    // These call postman-echo.com, so they run only when the network is allowed. Keep in sync with
+    // scripts/fastrun-bbe.js.
+    private static final Set<String> NETWORK_BBES = Set.of("alternate-receive", "multiple-receive", "multiple-wait");
     private static final String OUT_CHANNEL = "out";
     private static final String ERR_CHANNEL = "err";
     // RunExecutor logs this once each of the program's output streams closes.
     private static final String STOPPED_CHANNEL = "stopped";
     private static final long RUN_TIMEOUT_SECONDS = 180;
-    // Lines around the program's own output, as filtered by testExamples.
+    // Lines around the program's own output, as filtered by testExamples. scripts/fastrun-bbe.js also filters the
+    // lines only `bal run` prints.
     private static final List<Pattern> NOISE = Stream.of("^Compiling source$", "^Running executable$",
             "^Picked up JAVA_TOOL_OPTIONS:", "^HINT").map(Pattern::compile).toList();
     // The .out files come from single-file runs, whose stack traces name the module after the file (`panics:main`,
@@ -78,7 +84,8 @@ public class FastRunBbeTest {
     private static final Pattern ERROR_MODULE = Pattern.compile(" moduleName: " + PACKAGE_MODULE + " ");
     private static final Pattern FRAME_MODULE = Pattern.compile(PACKAGE_MODULE + ":");
     // A language server holding one workspace of all the BBEs runs out of the test task's heap, and real workspaces
-    // are far smaller, so the BBEs are split into workspaces of this many members.
+    // are far smaller, so the BBEs are split into workspaces of this many members. Keep in sync with
+    // scripts/fastrun-bbe.js.
     private static final int WORKSPACE_SIZE = 10;
 
     private Path workspacesPath;
@@ -148,6 +155,9 @@ public class FastRunBbeTest {
 
     private static void assertOutput(BallerinaWorkspaceManager workspaceManager, Path projectPath, String bbe)
             throws Exception {
+        if (NETWORK_BBES.contains(bbe) && !Boolean.getBoolean(NETWORK_PROPERTY)) {
+            throw new SkipException(bbe + " needs the network; run with -PbbeNetwork to include it");
+        }
         String fileName = bbe.replace('-', '_');
         Queue<LogTraceParams> logs = new ConcurrentLinkedQueue<>();
         try {
