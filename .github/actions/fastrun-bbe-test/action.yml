@@ -1,0 +1,46 @@
+name: Run fast run BBE tests
+description: >-
+  Sets up JDK, Gradle, and Ballerina, and runs the language server's fastRunBbeTest task, which runs
+  each output-checked BBE with fast run, as a package and as a workspace member, against the installed
+  Ballerina distribution. The repository must already be checked out. Shared by reusable-build.yml's
+  FastRunBbeTest job and schedule.yml's fastrun-bbe-test job.
+
+inputs:
+  package-user:
+    description: User for maven.pkg.github.com authentication
+    required: true
+  package-pat:
+    description: Token for maven.pkg.github.com authentication
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up JDK 25
+      uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+      with:
+        distribution: 'temurin'
+        java-version: 25.0.4
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+
+    - name: Set Up Ballerina
+      uses: ./.github/actions/setup-ballerina
+
+    # Every module the BBEs import ships in the distribution, so the run needs no Central access
+    # and no warm Ballerina home.
+    - name: Run fastRunBbeTest
+      shell: bash
+      working-directory: packages/ballerina-language-server
+      env:
+        packageUser: ${{ inputs.package-user }}
+        packagePAT: ${{ inputs.package-pat }}
+      run: ./gradlew :langserver-core:fastRunBbeTest -PballerinaDistribution="$(bal home)"
+
+    - name: Upload test report
+      if: ${{ failure() }}
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: fastrun-bbe-test-report
+        path: packages/ballerina-language-server/langserver-core/build/reports/tests/fastRunBbeTest

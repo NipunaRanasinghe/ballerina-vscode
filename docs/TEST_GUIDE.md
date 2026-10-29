@@ -153,6 +153,12 @@ BAL_UPDATE_FIXTURES=1 npx jest --config jest.realdata.config.js
 - [`nodeTemplateInvariants.test.ts`](../packages/ballerina-extension/src/test-support/ls-integration/nodeTemplateInvariants.test.ts) — connector node-template type invariants (#1491 class; intentionally red until the LS bug is fixed).
 - [`headlessHost.test.ts`](../packages/ballerina-extension/src/test-support/ls-integration/headlessHost.test.ts) — real rpc-manager handler against the real LS.
 
+**Fast run BBE tests.** [`FastRunBbeTest`](../packages/ballerina-language-server/langserver-core/src/test/java/org/ballerinalang/langserver/fastrun/bbe/FastRunBbeTest.java) runs each output-checked Ballerina by Example with the LS fast run, as a package and as a workspace member, and checks the output against the BBE's `.out` file. It runs nightly and on PRs labelled `Checks/Run Fast Run Tests`:
+```bash
+cd packages/ballerina-language-server
+./gradlew :langserver-core:fastRunBbeTest -PballerinaDistribution="$(bal home)" [-Pbbes=<a,b>] [-PbbeNetwork]
+```
+
 ---
 
 ## L4 — E2E smoke (Playwright + real VSCode)

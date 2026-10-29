@@ -60,6 +60,11 @@ on:
         type: boolean
         required: false
         default: false
+      runFastRunBbeTests:
+        description: Run the fast run BBE tests (language server integration, needs a Ballerina distribution)
+        type: boolean
+        required: false
+        default: false
     secrets:
       COPILOT_ROOT_URL:
         required: false
@@ -334,3 +339,21 @@ jobs:
           package-user: ${{ github.actor }}
           package-pat: ${{ secrets.GITHUB_TOKEN }}
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  FastRunBbeTest:
+    name: Run fast run BBE tests
+    timeout-minutes: 90
+    if: ${{ inputs.runFastRunBbeTests }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+
+      - name: Run fast run BBE tests
+        uses: ./.github/actions/fastrun-bbe-test
+        with:
+          package-user: ${{ github.actor }}
+          package-pat: ${{ secrets.GITHUB_TOKEN }}

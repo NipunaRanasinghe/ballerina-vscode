@@ -15,8 +15,8 @@ on:
         default: ''
       skipLSTests:
         description: >-
-          Skip the LS Ubuntu test and Windows build jobs, e.g. to unblock a release while
-          they are red. The LS pack, Trivy scan and extension build still gate the tag.
+          Skip the LS Ubuntu test, Windows build, and fast run BBE test jobs, e.g. to unblock a
+          release while they are red. The LS pack, Trivy scan and extension build still gate the tag.
         required: false
         type: boolean
         default: false
@@ -393,6 +393,27 @@ jobs:
           exit-code: '1'
           trivyignores: packages/ballerina-language-server/.trivyignore
 
+  # Runs on the nightly commit only, not the multi-branch matrix: release lines that predate
+  # fastRunBbeTest do not have the task.
+  fastrun-bbe-test:
+    name: Fast run BBE test
+    needs: sync-nightly
+    if: ${{ !inputs.skipLSTests }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout nightly commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.sync-nightly.outputs.sha }}
+          persist-credentials: false
+
+      - name: Run fast run BBE tests
+        uses: ./.github/actions/fastrun-bbe-test
+        with:
+          package-user: ${{ github.actor }}
+          package-pat: ${{ secrets.GITHUB_TOKEN }}
+
   # ─────────────────────────────────────────────────────────────────────────
   # Ballerina VSCode extension — build VSIX + tests
   # ─────────────────────────────────────────────────────────────────────────
@@ -427,6 +448,7 @@ jobs:
       - ls-ubuntu-test
       - ls-windows-build
       - ls-trivy
+      - fastrun-bbe-test
       - Build
     # A skipped need would skip this job too, so spell out what counts as passing: the LS
     # test jobs may be skipped only when skipLSTests was requested.
@@ -438,7 +460,8 @@ jobs:
         && needs.ls-trivy.result == 'success'
         && needs.Build.result == 'success'
         && (needs.ls-ubuntu-test.result == 'success' || (inputs.skipLSTests && needs.ls-ubuntu-test.result == 'skipped'))
-        && (needs.ls-windows-build.result == 'success' || (inputs.skipLSTests && needs.ls-windows-build.result == 'skipped')) }}
+        && (needs.ls-windows-build.result == 'success' || (inputs.skipLSTests && needs.ls-windows-build.result == 'skipped'))
+        && (needs.fastrun-bbe-test.result == 'success' || (inputs.skipLSTests && needs.fastrun-bbe-test.result == 'skipped')) }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -530,6 +553,7 @@ jobs:
       - ls-ubuntu-test
       - ls-windows-build
       - ls-trivy
+      - fastrun-bbe-test
       - Build
       - Tag
     if: ${{ always() && contains(needs.*.result, 'failure') && github.repository == 'ballerina-platform/ballerina-vscode' }}
