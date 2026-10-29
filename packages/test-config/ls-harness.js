@@ -69,23 +69,21 @@ const DISTRIBUTION_JAR_EXCLUDES = [
     /^org\.eclipse\.lsp4j/, /^diagram-util/, /^openapi-ls-extension/, /^sqlite-jdbc/,
 ];
 
-function newestMatch(dir, pattern) {
-    if (!fs.existsSync(dir)) {
-        return null;
-    }
-    const matches = fs.readdirSync(dir)
-        .filter((f) => pattern.test(f))
-        .map((f) => path.join(dir, f))
-        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-    return matches[0] ?? null;
-}
-
+// $BAL_LS_JAR, else the jar that the extension's copyLS script puts in the vsix:
+// ballerina-language-server-<version>.jar, with the version from ballerina-extension/package.json.
+// Throws when $BAL_LS_JAR is set but missing, so a wrong path fails the run instead of skipping it.
 function resolveLocalLsJar() {
-    if (process.env.BAL_LS_JAR) {
-        return fs.existsSync(process.env.BAL_LS_JAR) ? process.env.BAL_LS_JAR : null;
+    const explicitJar = process.env.BAL_LS_JAR;
+    if (explicitJar) {
+        if (!fs.existsSync(explicitJar)) {
+            throw new Error(`BAL_LS_JAR=${explicitJar} does not exist`);
+        }
+        return explicitJar;
     }
-    const buildDir = path.join(__dirname, "..", "ballerina-language-server", "build");
-    return newestMatch(buildDir, /^ballerina-language-server-.*(?<!-sources|-javadoc)\.jar$/);
+    const { version } = require("../ballerina-extension/package.json");
+    const jar = path.join(__dirname, "..", "ballerina-language-server", "build",
+        `ballerina-language-server-${version}.jar`);
+    return fs.existsSync(jar) ? jar : null;
 }
 
 // The LS jar is compiled for this Java release. Keep in sync with REQUIRED_JDK_MAJOR_VERSION in
@@ -101,6 +99,16 @@ function highestJdkDir(depsDir) {
     return jdks.length ? path.join(depsDir, jdks[0]) : null;
 }
 
+// Same as getJdkMajorVersion in server.ts: JAVA_VERSION from the JDK's release file, else the
+// directory name, e.g. 'jdk-25.0.4+1-jre'.
+function jdkMajorVersion(jdkDir) {
+    const releaseFile = path.join(jdkDir, "release");
+    const fromRelease = fs.existsSync(releaseFile)
+        && fs.readFileSync(releaseFile, "utf8").match(/^JAVA_VERSION="?([0-9]+)/m);
+    const match = fromRelease || path.basename(jdkDir).match(/^jdk-([0-9]+)/);
+    return match ? parseInt(match[1], 10) : 0;
+}
+
 // Same lookup as resolveLanguageServerJdkDir in server.ts: the highest jdk-*-jre in the
 // dependencies/ directory beside distributions/, else in its parent. Returns null when that JDK is
 // older than the LS needs, so the suite skips instead of failing with UnsupportedClassVersionError.
@@ -113,7 +121,7 @@ function resolveJava(ballerinaHome) {
     if (!jdkDir) {
         return null;
     }
-    const major = parseInt(path.basename(jdkDir).match(/^jdk-(\d+)/)?.[1] ?? "0", 10);
+    const major = jdkMajorVersion(jdkDir);
     const java = path.join(jdkDir, "bin", isWindows ? "java.exe" : "java");
     return major >= REQUIRED_JDK_MAJOR_VERSION && fs.existsSync(java) ? java : null;
 }
@@ -126,8 +134,14 @@ function resolveLocalLsCommand() {
     }
     let ballerinaHome;
     try {
-        const out = execFileSync(bal, ["home"], { encoding: "utf8", shell: isWindows, timeout: 30_000 });
+        // bal.bat needs a shell on Windows, and cmd splits an unquoted path at spaces.
+        const out = execFileSync(isWindows ? `"${bal}"` : bal, ["home"],
+            { encoding: "utf8", shell: isWindows, timeout: 30_000 });
         ballerinaHome = out.trim().split(/\r?\n/).pop().trim();
+        // server.ts resolves junctions and 8.3 names on Windows before building the classpath.
+        if (isWindows) {
+            ballerinaHome = fs.realpathSync.native(ballerinaHome);
+        }
     } catch {
         return null;
     }
@@ -185,18 +199,11 @@ class LsHarness {
         this.proc.stderr.on("data", () => {});
         // Surface a failed spawn (bad path, perms) as a normal rejection instead of an
         // unhandled 'error' event that would crash the Jest worker.
-        this.proc.on("error", (err) => {
-            for (const [, p] of this.pending) {
-                p.reject(err);
-            }
-            this.pending.clear();
-        });
-        this.proc.on("exit", (code) => {
-            for (const [, p] of this.pending) {
-                p.reject(new Error(`LS exited (code ${code}) before responding`));
-            }
-            this.pending.clear();
-        });
+        this.proc.on("error", (err) => this.rejectPending(err));
+        // A write after the LS has died emits EPIPE here. Reject the pending requests instead of
+        // leaving an unhandled 'error' event that would crash the Jest worker.
+        this.proc.stdin.on("error", (err) => this.rejectPending(err));
+        this.proc.on("exit", (code) => this.rejectPending(new Error(`LS exited (code ${code}) before responding`)));
         // Reject notification waiters on 'close' rather than 'exit': 'close' fires after stdout
         // has ended, so a notification the LS wrote just before exiting is still dispatched.
         this.proc.on("close", (code) => {
@@ -207,6 +214,13 @@ class LsHarness {
                 w.reject(new Error(`LS exited (code ${code}) before sending '${w.method}'`));
             }
         });
+    }
+
+    rejectPending(err) {
+        for (const [, p] of this.pending) {
+            p.reject(err);
+        }
+        this.pending.clear();
     }
 
     onData(chunk) {

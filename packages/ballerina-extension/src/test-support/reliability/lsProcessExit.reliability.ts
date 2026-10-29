@@ -75,17 +75,20 @@ async function useDebouncers(ls: LsHarness): Promise<void> {
         contentChanges: [{ text: text.replace("Hello, World!", "Hello!") }],
     });
     await artifactsPublished;
-    const signatureHelp = await ls.request("expressionEditor/signatureHelp", {
+    // Debouncer.debounce completes this request normally only from the task it ran on its
+    // scheduler thread; a superseded or failed task rejects it. So the request resolving, with any
+    // result, shows that the scheduler thread started. The result itself is not checked: here it is
+    // null, because signature help finds no call at the cursor in this headless setup.
+    await ls.request("expressionEditor/signatureHelp", {
         filePath: mainBal,
         context: {
             expression: "io:println(1)",
             offset: 11,
-            lineOffset: 3,
+            startLine: { line: 3, offset: 4 },
             property: { types: [{ fieldType: "EXPRESSION" }] },
         },
         signatureHelpContext: { triggerKind: "Invoked", isRetrigger: false },
     });
-    expect(signatureHelp).toBeDefined();
 }
 
 // As LSP requires: status 0 only if the client sent shutdown before going away, else 1.
@@ -96,10 +99,12 @@ function expectExitStatus(proc: ChildProcess, code: number): void {
 describeReliability("Language server process exit (reliability)", () => {
     let ls: LsHarness | undefined;
 
-    afterEach(() => {
-        // Never leave a JVM behind, even when an assertion failed.
+    afterEach(async () => {
+        // Never leave a JVM behind, even when an assertion failed. Wait for it to exit so the
+        // next test does not start while this JVM is still running.
         if (ls?.proc && ls.proc.exitCode === null && ls.proc.signalCode === null) {
             ls.proc.kill("SIGKILL");
+            await waitForExit(ls.proc, EXIT_TIMEOUT_MS);
         }
         ls = undefined;
     });

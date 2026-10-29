@@ -31,10 +31,11 @@ export interface LsLaunchSpec {
 }
 
 /**
- * Resolve a `java` launch of a locally built LS jar ($BAL_LS_JAR, else the newest
- * ballerina-language-server/build jar) on the extension's classpath for the `bal home`
+ * Resolve a `java` launch of a locally built LS jar ($BAL_LS_JAR, else
+ * ballerina-language-server/build/ballerina-language-server-<version>.jar, with the version from
+ * ballerina-extension/package.json) on the extension's classpath for the `bal home`
  * distribution. Returns null when the jar or distribution is missing, or the distribution's
- * JDK is missing or older than Java 25.
+ * JDK is missing or older than Java 25. Throws when $BAL_LS_JAR is set but does not exist.
  */
 export declare function resolveLocalLsCommand(): LsLaunchSpec | null;
 
