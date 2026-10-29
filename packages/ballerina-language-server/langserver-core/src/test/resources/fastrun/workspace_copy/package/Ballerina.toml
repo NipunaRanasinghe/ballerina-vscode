@@ -1,0 +1,4 @@
+[package]
+org = "baltest"
+name = "package_alone"
+version = "0.1.0"

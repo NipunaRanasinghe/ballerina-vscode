@@ -38,6 +38,7 @@ import io.ballerina.projects.Module;
 import io.ballerina.projects.ModuleCompilation;
 import io.ballerina.projects.Package;
 import io.ballerina.projects.PackageCompilation;
+import io.ballerina.projects.PackageDescriptor;
 import io.ballerina.projects.Project;
 import io.ballerina.projects.ProjectException;
 import io.ballerina.projects.ProjectKind;
@@ -104,6 +105,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -785,7 +787,9 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         try {
             Project project = projectContext.project();
             Optional<WorkspaceProject> workspace = project.workspaceProject();
-            if (workspace.isEmpty()) {
+            // Copying a workspace builds a compiler environment for each member, which costs about 5 MB per member, so
+            // a member that imports none of its siblings is copied on its own.
+            if (workspace.isEmpty() || !importsWorkspaceMember(project.currentPackage(), workspace.get())) {
                 return project.duplicate();
             }
             // A member's own copy still resolves its siblings from the editor's workspace, whose packages belong to
@@ -804,6 +808,16 @@ public class BallerinaWorkspaceManager implements WorkspaceManager {
         } finally {
             lock.unlock();
         }
+    }
+
+    // The resolution is the one the editor's compilation already made for this package, so this does not resolve again.
+    private static boolean importsWorkspaceMember(Package pkg, WorkspaceProject workspace) {
+        Set<PackageDescriptor> siblings = workspace.projects().stream()
+                .map(member -> member.currentPackage().descriptor())
+                .filter(descriptor -> !descriptor.equals(pkg.descriptor()))
+                .collect(Collectors.toSet());
+        return pkg.getResolution().dependencyGraph().getNodes().stream()
+                .anyMatch(dependency -> siblings.contains(dependency.packageInstance().descriptor()));
     }
 
     // The real path when it resolves, so a symlinked or differently cased root still matches its copy.
