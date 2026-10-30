@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_combining_isolated_functions_and_lock"
-version = "0.1.0"

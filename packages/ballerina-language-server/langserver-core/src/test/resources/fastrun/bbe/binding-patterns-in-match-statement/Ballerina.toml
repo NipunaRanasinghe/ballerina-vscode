@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_binding_patterns_in_match_statement"
-version = "0.1.0"

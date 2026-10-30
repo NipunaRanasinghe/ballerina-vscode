@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_inferring_isolated"
-version = "0.1.0"

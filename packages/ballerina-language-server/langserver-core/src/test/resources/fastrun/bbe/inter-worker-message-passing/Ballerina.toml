@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_inter_worker_message_passing"
-version = "0.1.0"

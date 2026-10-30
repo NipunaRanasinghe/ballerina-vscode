@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_wildcard_binding_pattern"
-version = "0.1.0"

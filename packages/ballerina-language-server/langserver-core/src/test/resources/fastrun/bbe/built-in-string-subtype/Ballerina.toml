@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_built_in_string_subtype"
-version = "0.1.0"

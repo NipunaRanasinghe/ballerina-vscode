@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_readonly_objects_and_classes"
-version = "0.1.0"

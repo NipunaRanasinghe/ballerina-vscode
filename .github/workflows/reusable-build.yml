@@ -342,7 +342,7 @@ jobs:
 
   FastRunBbeTest:
     name: Run fast run BBE tests
-    timeout-minutes: 90
+    timeout-minutes: 30
     if: ${{ inputs.runFastRunBbeTests }}
     runs-on: ubuntu-latest
     steps:

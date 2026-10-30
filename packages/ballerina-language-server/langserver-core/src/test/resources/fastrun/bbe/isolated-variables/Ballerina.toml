@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_isolated_variables"
-version = "0.1.0"

@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_xml_from_record_conversion"
-version = "0.1.0"

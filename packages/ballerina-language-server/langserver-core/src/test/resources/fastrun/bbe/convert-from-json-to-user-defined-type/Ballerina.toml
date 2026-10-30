@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_convert_from_json_to_user_defined_type"
-version = "0.1.0"

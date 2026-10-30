@@ -400,7 +400,7 @@ jobs:
     needs: sync-nightly
     if: ${{ !inputs.skipLSTests }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
       - name: Checkout nightly commit
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

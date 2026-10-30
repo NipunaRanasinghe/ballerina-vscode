@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_singleton_types"
-version = "0.1.0"

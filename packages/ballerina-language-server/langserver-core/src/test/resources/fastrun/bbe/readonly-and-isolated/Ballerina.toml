@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_readonly_and_isolated"
-version = "0.1.0"

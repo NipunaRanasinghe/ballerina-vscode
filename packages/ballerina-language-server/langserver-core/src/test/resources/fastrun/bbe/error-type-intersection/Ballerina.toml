@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_error_type_intersection"
-version = "0.1.0"

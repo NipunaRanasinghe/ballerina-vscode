@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_match_statement_with_maps"
-version = "0.1.0"

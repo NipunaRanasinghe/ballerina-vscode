@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_transactional_qualifier"
-version = "0.1.0"

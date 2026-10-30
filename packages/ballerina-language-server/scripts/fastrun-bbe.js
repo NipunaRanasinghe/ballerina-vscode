@@ -19,9 +19,12 @@
 
 // Ballerina by Examples (BBEs) as packages, for testing fast run against `bal run`.
 //
-//   node scripts/fastrun-bbe.js import <ballerina-distribution checkout>
-//     Copies every BBE the distribution checks the output of (`verifyOutput` in
-//     examples/index.json) into the LS test resources as a package of its own.
+//   node scripts/fastrun-bbe.js import [--all] <ballerina-distribution checkout>
+//     Copies the BBEs the distribution checks the output of (`verifyOutput` in
+//     examples/index.json) into the LS test resources, each as a package of its own. Without
+//     --all, it copies only a subset (see selectSubset): fast run uses the same compiler and
+//     runtime as `bal run`, which the distribution already tests on every BBE, so most BBEs run
+//     the same fast-run steps with a different program in the middle.
 //
 //   node scripts/fastrun-bbe.js baseline [--workspace] [--network] [--bal <bal>] [--jobs <n>] [--only <a,b>]
 //                                        [--out <dir>]
@@ -54,10 +57,42 @@ const NOISE = [/^Compiling source( \(UP-TO-DATE\))?$/, /^Running executable$/, /
     /^Picked up JAVA_TOOL_OPTIONS:/, /^HINT/,
     /^Generating executable$/, new RegExp(`^${ORG}/${NAME_PREFIX}\\w+:0\\.1\\.0$`)];
 
-function importBbes(distDir) {
+// The traits that change what fast run does with a program: the imported modules (the classpath and
+// their Java dependencies), error or panic output (stderr and stack traces), non-ASCII output (output
+// encoding), configurables, and workers or strands (output from more than one thread).
+function fastRunTraits(examplesDir, url) {
+    const fileName = url.replace(/-/g, "_");
+    const source = fs.readFileSync(path.join(examplesDir, url, `${fileName}.bal`), "utf8");
+    const output = fs.readFileSync(path.join(examplesDir, url, `${fileName}.out`), "utf8");
+    const imports = [...source.matchAll(/^import (\S+?)(?: as \w+)?;/gm)].map((match) => match[1])
+        .filter((module) => module !== "ballerina/io");
+    const traits = [...new Set(imports)].sort();
+    if (/panic|error:/.test(output)) traits.push("error-output");
+    if (/[^\x00-\x7f]/.test(output)) traits.push("non-ascii-output");
+    if (/configurable/.test(source)) traits.push("configurable");
+    if (/\bworker\b|\bstart\b/.test(source)) traits.push("concurrency");
+    return { key: traits.join(","), outputLines: output.split("\n").length };
+}
+
+// One BBE for each combination of traits, two for a combination ten or more BBEs share. Within a
+// combination, the BBEs with the longest output come first, as they exercise output streaming most.
+// The network BBEs are left out, as the tests skip them by default.
+function selectSubset(examplesDir, bbes) {
+    const groups = new Map();
+    for (const bbe of bbes.filter((sample) => !NETWORK_BBES.includes(sample.url))) {
+        const traits = fastRunTraits(examplesDir, bbe.url);
+        groups.set(traits.key, [...(groups.get(traits.key) ?? []), { bbe, outputLines: traits.outputLines }]);
+    }
+    return [...groups.values()].flatMap((group) => group
+        .sort((a, b) => b.outputLines - a.outputLines || a.bbe.url.localeCompare(b.bbe.url))
+        .slice(0, group.length >= 10 ? 2 : 1).map((entry) => entry.bbe));
+}
+
+function importBbes(distDir, all) {
     const examplesDir = path.join(distDir, "examples");
     const index = JSON.parse(fs.readFileSync(path.join(examplesDir, "index.json"), "utf8"));
-    const bbes = index.flatMap((category) => category.samples).filter((sample) => sample.verifyOutput);
+    const verified = index.flatMap((category) => category.samples).filter((sample) => sample.verifyOutput);
+    const bbes = all ? verified : selectSubset(examplesDir, verified);
     const commit = execFileSync("git", ["-C", distDir, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 
     fs.rmSync(BBE_DIR, { recursive: true, force: true });
@@ -81,11 +116,19 @@ function importBbes(distDir) {
         "(`verifyOutput` in `examples/index.json`), with a `Ballerina.toml` added so it runs as a package.",
         "`<name>.out` is the BBE's expected output.",
         "",
+        ...(all ? [`These are all ${verified.length} of them.`] : [
+            `These are ${bbes.length} of the ${verified.length}: one for each combination of the traits that change`,
+            "what fast run does with a program (imported modules, error or panic output, non-ASCII output,",
+            "configurables, workers or strands), and two for a combination ten or more BBEs share.",
+            "`selectSubset` in `scripts/fastrun-bbe.js` has the rule.",
+        ]),
+        "",
         `Imported from ballerina-platform/ballerina-distribution at \`${commit}\`.`,
-        "Regenerate with `node scripts/fastrun-bbe.js import <ballerina-distribution checkout>`.",
+        `Regenerate with \`node scripts/fastrun-bbe.js import${all ? " --all" : ""}`
+            + " <ballerina-distribution checkout>`.",
         "",
     ].join("\n"));
-    console.log(`Imported ${bbes.length} BBEs into ${path.relative(process.cwd(), BBE_DIR)}`);
+    console.log(`Imported ${bbes.length} of ${verified.length} BBEs into ${path.relative(process.cwd(), BBE_DIR)}`);
 }
 
 function runBal(bal, dir, flags) {
@@ -194,15 +237,16 @@ function parseOptions(args) {
 
 async function main() {
     const [command, ...args] = process.argv.slice(2);
-    if (command === "import" && args.length === 1) {
-        importBbes(path.resolve(args[0]));
+    if (command === "import" && (args.length === 1 || (args.length === 2 && args[0] === "--all"))) {
+        importBbes(path.resolve(args[args.length - 1]), args.length === 2);
         return 0;
     }
     if (command === "baseline") {
         return baseline(parseOptions(args));
     }
-    console.error("Usage: fastrun-bbe.js import <ballerina-distribution checkout>\n"
-        + "       fastrun-bbe.js baseline [--workspace] [--network] [--bal <bal>] [--jobs <n>] [--only <a,b>] [--out <dir>]");
+    console.error("Usage: fastrun-bbe.js import [--all] <ballerina-distribution checkout>\n"
+        + "       fastrun-bbe.js baseline [--workspace] [--network] [--bal <bal>] [--jobs <n>] [--only <a,b>]"
+        + " [--out <dir>]");
     return 2;
 }
 

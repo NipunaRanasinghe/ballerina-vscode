@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_task_one_time_job_execution"
-version = "0.1.0"

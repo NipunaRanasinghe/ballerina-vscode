@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_multiple_receive"
-version = "0.1.0"

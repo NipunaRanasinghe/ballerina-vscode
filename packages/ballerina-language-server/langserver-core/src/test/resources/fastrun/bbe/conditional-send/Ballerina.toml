@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_conditional_send"
-version = "0.1.0"

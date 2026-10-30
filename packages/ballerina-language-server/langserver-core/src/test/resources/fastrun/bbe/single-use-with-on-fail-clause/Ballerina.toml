@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_single_use_with_on_fail_clause"
-version = "0.1.0"

@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_included_record_parameters"
-version = "0.1.0"

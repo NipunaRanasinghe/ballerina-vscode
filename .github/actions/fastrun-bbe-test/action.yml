@@ -1,8 +1,8 @@
 name: Run fast run BBE tests
 description: >-
   Sets up JDK, Gradle, and Ballerina, and runs the language server's fastRunBbeTest task, which runs
-  each output-checked BBE with fast run, as a package and as a workspace member, against the installed
-  Ballerina distribution. The repository must already be checked out. Shared by reusable-build.yml's
+  the BBE packages in its test resources with fast run, as a package and as a workspace member, against
+  the installed Ballerina distribution. The repository must already be checked out. Shared by reusable-build.yml's
   FastRunBbeTest job and schedule.yml's fastrun-bbe-test job.
 
 inputs:

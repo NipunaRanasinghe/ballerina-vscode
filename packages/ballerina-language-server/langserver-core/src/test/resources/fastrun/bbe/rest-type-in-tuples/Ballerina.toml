@@ -1,4 +1,0 @@
-[package]
-org = "baltest"
-name = "bbe_rest_type_in_tuples"
-version = "0.1.0"
