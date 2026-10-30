@@ -60,8 +60,8 @@ on:
         type: boolean
         required: false
         default: false
-      runFastRunBbeTests:
-        description: Run the fast run BBE tests (language server integration, needs a Ballerina distribution)
+      runIntegrationTests:
+        description: Run the integration (L3) tests, which need a Ballerina distribution
         type: boolean
         required: false
         default: false
@@ -343,7 +343,7 @@ jobs:
   FastRunBbeTest:
     name: Run fast run BBE tests
     timeout-minutes: 30
-    if: ${{ inputs.runFastRunBbeTests }}
+    if: ${{ inputs.runIntegrationTests }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
