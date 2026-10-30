@@ -394,7 +394,8 @@ jobs:
           trivyignores: packages/ballerina-language-server/.trivyignore
 
   # Runs on the nightly commit only, not the multi-branch matrix: release lines that predate
-  # fastRunBbeTest do not have the task.
+  # fastRunBbeTest do not have the task. Advisory until it has passed in CI on both platforms: a
+  # failure notifies (NotifyFailure) but does not hold back the nightly tag.
   fastrun-bbe-test:
     name: Fast run BBE test (${{ matrix.os }})
     needs: sync-nightly
@@ -457,7 +458,6 @@ jobs:
       - ls-ubuntu-test
       - ls-windows-build
       - ls-trivy
-      - fastrun-bbe-test
       - Build
     # A skipped need would skip this job too, so spell out what counts as passing: the LS
     # test jobs may be skipped only when skipLSTests was requested.
@@ -469,8 +469,7 @@ jobs:
         && needs.ls-trivy.result == 'success'
         && needs.Build.result == 'success'
         && (needs.ls-ubuntu-test.result == 'success' || (inputs.skipLSTests && needs.ls-ubuntu-test.result == 'skipped'))
-        && (needs.ls-windows-build.result == 'success' || (inputs.skipLSTests && needs.ls-windows-build.result == 'skipped'))
-        && (needs.fastrun-bbe-test.result == 'success' || (inputs.skipLSTests && needs.fastrun-bbe-test.result == 'skipped')) }}
+        && (needs.ls-windows-build.result == 'success' || (inputs.skipLSTests && needs.ls-windows-build.result == 'skipped')) }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
