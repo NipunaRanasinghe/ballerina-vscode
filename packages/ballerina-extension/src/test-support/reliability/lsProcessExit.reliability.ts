@@ -97,9 +97,10 @@ async function useDebouncers(ls: LsHarness): Promise<void> {
     });
 }
 
-// As LSP requires: status 0 only if the client sent shutdown before going away, else 1.
-function expectExitStatus(proc: ChildProcess, code: number): void {
-    expect({ code: proc.exitCode, signal: proc.signalCode }).toEqual({ code, signal: null });
+// The process exited by itself: it has an exit status and was not killed by a signal.
+function expectExitedOnItsOwn(proc: ChildProcess): void {
+    expect(proc.exitCode).not.toBeNull();
+    expect(proc.signalCode).toBeNull();
 }
 
 describeReliability("Language server process exit (reliability)", () => {
@@ -130,7 +131,8 @@ describeReliability("Language server process exit (reliability)", () => {
         await server.request("shutdown");
         server.notify("exit");
         expect(await waitForExit(server.proc!, EXIT_TIMEOUT_MS)).toBe(true);
-        expectExitStatus(server.proc!, 0);
+        // LSP: exit after shutdown ends the server with status 0.
+        expect({ code: server.proc!.exitCode, signal: server.proc!.signalCode }).toEqual({ code: 0, signal: null });
     });
 
     it("exits when the client closes stdin without sending exit", async () => {
@@ -138,6 +140,8 @@ describeReliability("Language server process exit (reliability)", () => {
         await useDebouncers(server);
         server.proc!.stdin!.end();
         expect(await waitForExit(server.proc!, EXIT_TIMEOUT_MS)).toBe(true);
-        expectExitStatus(server.proc!, 1);
+        // LSP defines no status for stdin closing. The launcher's choice (1) is checked by
+        // StartServerExitTest; this suite checks only that the process exits.
+        expectExitedOnItsOwn(server.proc!);
     });
 });
