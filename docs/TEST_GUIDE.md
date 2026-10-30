@@ -191,7 +191,7 @@ cd packages/ballerina-extension && pnpm run test:perf
 
 ## Reliability (orthogonal — not a scope level)
 
-**What.** Checks that processes and resources stay bounded, such as no language server JVM remaining after its client goes away. Runs the LS jar built from this repo against a Ballerina distribution. Not a PR gate.
+**What.** Checks that processes and resources stay bounded, such as no language server JVM remaining after its client goes away. Runs the LS jar built from this repo against a Ballerina distribution. Not a PR gate: the nightly build (`schedule.yml`, job `ls-ubuntu-reliability`) runs it against the jar it built for each branch, and a failure stops the `nightly` tag from moving. That job sets `BAL_RELIABILITY_REQUIRED=true`, which makes a missing jar, distribution or JDK fail the suite instead of skipping it.
 
 **How to run.**
 ```bash

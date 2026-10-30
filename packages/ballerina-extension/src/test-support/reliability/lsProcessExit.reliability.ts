@@ -42,6 +42,12 @@ const mainBal = path.join(projectRoot, "main.bal");
 const EXIT_TIMEOUT_MS = 15_000;
 
 if (!launch) {
+    // The nightly sets BAL_RELIABILITY_REQUIRED, so a missing jar, distribution or JDK fails the
+    // job there instead of passing with no tests run.
+    if (process.env.BAL_RELIABILITY_REQUIRED === "true") {
+        throw new Error("[reliability] BAL_RELIABILITY_REQUIRED is set, but no local LS jar, "
+            + "Ballerina distribution or Java 25+ JDK was found.");
+    }
     // eslint-disable-next-line no-console
     console.warn("[reliability] No local LS jar, Ballerina distribution or Java 25+ JDK found; skipping.");
 }

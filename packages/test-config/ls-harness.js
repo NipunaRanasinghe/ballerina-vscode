@@ -35,7 +35,8 @@
 // same classpath the extension uses (getServerOptionsUsingJava in
 // ballerina-extension/src/utils/server/server.ts). Jar resolution order:
 //   1. $BAL_LS_JAR
-//   2. the newest packages/ballerina-language-server/build/ballerina-language-server-*.jar
+//   2. packages/ballerina-language-server/build/ballerina-language-server-<version>.jar, with
+//      <version> from ballerina-extension/package.json (the jar copyLS ships)
 // The distribution comes from `bal home` and the JDK from its dependencies/ directory, as in
 // the extension. Returns null when any of these is missing or the JDK is older than Java 25.
 
@@ -62,12 +63,13 @@ function resolveBalCommand() {
 }
 
 // LS modules that the LS jar already bundles. Keep in sync with excludeJarPatterns in
-// ballerina-extension/src/utils/server/server.ts.
+// ballerina-extension/src/utils/server/server.ts. The globs are turned into regexes the same way
+// as findJarsExcludingPatterns does there: unanchored, so a pattern matches anywhere in the name.
 const DISTRIBUTION_JAR_EXCLUDES = [
-    /^architecture-model/, /^flow-model/, /^graphql-model/, /^model-generator/, /^sequence-model/,
-    /^service-model/, /^test-manager-service/, /^language-server/, /^bal-shell-service/,
-    /^org\.eclipse\.lsp4j/, /^diagram-util/, /^openapi-ls-extension/, /^sqlite-jdbc/,
-];
+    "architecture-model*", "flow-model*", "graphql-model*", "model-generator*", "sequence-model*",
+    "service-model*", "test-manager-service*", "language-server*", "bal-shell-service*",
+    "org.eclipse.lsp4j*", "diagram-util*", "openapi-ls-extension*", "sqlite-jdbc*",
+].map((pattern) => new RegExp(pattern.replace(/\*/g, ".*")));
 
 // $BAL_LS_JAR, else the jar that the extension's copyLS script puts in the vsix:
 // ballerina-language-server-<version>.jar, with the version from ballerina-extension/package.json.
