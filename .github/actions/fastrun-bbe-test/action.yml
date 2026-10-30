@@ -28,6 +28,14 @@ runs:
     - name: Set Up Ballerina
       uses: ./.github/actions/setup-ballerina
 
+    # pwsh, as Git Bash on Windows does not run bal.bat as `bal`.
+    - name: Resolve the Ballerina distribution directory
+      id: distribution
+      shell: pwsh
+      run: |
+        $directory = bal home | Select-Object -First 1
+        "directory=$directory" >> $env:GITHUB_OUTPUT
+
     # Every module the BBEs import ships in the distribution, so the run needs no Central access
     # and no warm Ballerina home.
     - name: Run fastRunBbeTest
@@ -36,11 +44,18 @@ runs:
       env:
         packageUser: ${{ inputs.package-user }}
         packagePAT: ${{ inputs.package-pat }}
-      run: ./gradlew :langserver-core:fastRunBbeTest -PballerinaDistribution="$(bal home)"
+        DISTRIBUTION: ${{ steps.distribution.outputs.directory }}
+      run: |
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          GRADLE=./gradlew.bat
+        else
+          GRADLE=./gradlew
+        fi
+        "$GRADLE" :langserver-core:fastRunBbeTest -PballerinaDistribution="$DISTRIBUTION"
 
     - name: Upload test report
       if: ${{ failure() }}
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: fastrun-bbe-test-report
+        name: fastrun-bbe-test-report-${{ runner.os }}
         path: packages/ballerina-language-server/langserver-core/build/reports/tests/fastRunBbeTest

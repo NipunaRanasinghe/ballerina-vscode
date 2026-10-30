@@ -341,11 +341,20 @@ jobs:
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
   FastRunBbeTest:
-    name: Run fast run BBE tests
-    timeout-minutes: 30
+    name: Run fast run BBE tests (${{ matrix.os }})
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || 30 }}
     if: ${{ inputs.runIntegrationTests }}
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
+      - name: Enable long paths for Git
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --system core.longpaths true
+
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:

@@ -396,12 +396,21 @@ jobs:
   # Runs on the nightly commit only, not the multi-branch matrix: release lines that predate
   # fastRunBbeTest do not have the task.
   fastrun-bbe-test:
-    name: Fast run BBE test
+    name: Fast run BBE test (${{ matrix.os }})
     needs: sync-nightly
     if: ${{ !inputs.skipLSTests }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || 30 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
+      - name: Enable long paths for Git
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --system core.longpaths true
+
       - name: Checkout nightly commit
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
