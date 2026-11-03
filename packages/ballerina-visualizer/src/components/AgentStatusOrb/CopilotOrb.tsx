@@ -23,11 +23,6 @@ import { AgentRunState } from "@wso2/ballerina-core";
 import { ShaderOrb } from "./ShaderOrb";
 import { FALLBACK_ORB_THEME, GlassSphere, IconOverlay, ORB_ENERGY, OrbTheme, useOrbTheme } from "./shared";
 
-const rotate = keyframes`
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-`;
-
 const haloPulse = keyframes`
     0%, 100% { opacity: 0.25; transform: scale(1); }
     50% { opacity: 0.6; transform: scale(1.18); }
@@ -54,19 +49,6 @@ const Halo = styled.div<ColorsProps>`
     @media (prefers-reduced-motion: reduce) {
         animation: none;
         opacity: 0.4;
-    }
-`;
-
-const SpinArc = styled.div`
-    position: absolute;
-    inset: -2px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    border-top-color: var(--vscode-button-foreground);
-    animation: ${rotate} 1.1s linear infinite;
-    pointer-events: none;
-    @media (prefers-reduced-motion: reduce) {
-        display: none;
     }
 `;
 
@@ -298,7 +280,6 @@ export function CopilotOrb({ state, colors, size, theme, noticing = false }: Cop
             ) : (
                 <GlassSphere colors={colors} />
             )}
-            {state === "running" && <SpinArc />}
             <IconOverlay>
                 <Eyes $size={size} $thinking={thinking}>
                     <Eye $size={size} $motion={motion} $squint={thinking} />
