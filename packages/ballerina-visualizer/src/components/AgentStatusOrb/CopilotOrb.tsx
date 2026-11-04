@@ -28,11 +28,26 @@ const haloPulse = keyframes`
     50% { opacity: 0.6; transform: scale(1.18); }
 `;
 
-const Holder = styled.div<{ $size: number }>`
+// While a suggestion is up the orb bobs gently, like someone waiting on an answer.
+const BOB_RATIO = 0.04;
+const BOB_PERIOD_MS = 1600;
+
+const orbBob = keyframes`
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(calc(-1 * var(--orb-bob))); }
+`;
+
+const Holder = styled.div<{ $size: number; $eager: boolean }>`
+    --orb-bob: ${(props: { $size: number }) => props.$size * BOB_RATIO}px;
     position: relative;
     width: ${(props: { $size: number }) => props.$size}px;
     height: ${(props: { $size: number }) => props.$size}px;
     flex: none;
+    animation: ${(props: { $eager: boolean }) => (props.$eager ? orbBob : "none")} ${BOB_PERIOD_MS}ms ease-in-out
+        infinite;
+    @media (prefers-reduced-motion: reduce) {
+        animation: none;
+    }
 `;
 
 interface ColorsProps {
@@ -87,7 +102,10 @@ const PERK_DURATION_MS = 900;
 const EYE_SQUINT_HEIGHT_RATIO = EYE_HEIGHT_RATIO * 0.65;
 const EYE_DRIFT_RATIO = 0.06;
 const DRIFT_PERIOD_MS = 4000;
-const SQUINT_TRANSITION_MS = 200;
+const EYE_REST_TRANSITION_MS = 200;
+
+// While a suggestion is up the eyes hold a little wider, another resting height.
+const EYE_EAGER_HEIGHT_RATIO = EYE_HEIGHT_RATIO * 1.08;
 
 // Animates height rather than scaleY: `border-radius` resolves against the
 // unscaled box, so scaling squashes the corner radii into ellipses and the
@@ -218,9 +236,8 @@ const Eyes = styled.div<{ $size: number; $thinking: boolean }>`
  * Fixed white rather than a theme token: the sphere behind it is now always
  * dark, so a theme-driven foreground could leave the eyes unreadable.
  */
-const Eye = styled.div<{ $size: number; $motion: EyeMotion | null; $squint: boolean }>`
-    --eye-open: ${(props: { $size: number; $squint: boolean }) =>
-        props.$size * (props.$squint ? EYE_SQUINT_HEIGHT_RATIO : EYE_HEIGHT_RATIO)}px;
+const Eye = styled.div<{ $size: number; $motion: EyeMotion | null; $openRatio: number }>`
+    --eye-open: ${(props: { $size: number; $openRatio: number }) => props.$size * props.$openRatio}px;
     --eye-shut: ${(props: { $size: number }) => props.$size * EYE_SHUT_HEIGHT_RATIO}px;
     --eye-perk: ${(props: { $size: number }) => props.$size * EYE_PERK_HEIGHT_RATIO}px;
     width: ${(props: { $size: number }) => props.$size * EYE_WIDTH_RATIO}px;
@@ -238,8 +255,8 @@ const Eye = styled.div<{ $size: number; $motion: EyeMotion | null; $squint: bool
     animation-name: ${(props: { $motion: EyeMotion | null }) => (props.$motion ? EYE_MOTION[props.$motion].name : "none")};
     animation-duration: ${(props: { $motion: EyeMotion | null }) => (props.$motion ? EYE_MOTION[props.$motion].ms : 0)}ms;
     animation-timing-function: linear;
-    transition: height ${SQUINT_TRANSITION_MS}ms ease-out;
-    // The squint itself stays: it is a pose, not motion.
+    transition: height ${EYE_REST_TRANSITION_MS}ms ease-out;
+    // The squint and the wider eye stay: they are poses, not motion.
     @media (prefers-reduced-motion: reduce) {
         animation: none;
         transition: none;
@@ -252,7 +269,7 @@ export interface CopilotOrbProps {
     size: number;
     /** Pins a theme instead of following the shared preference. */
     theme?: OrbTheme;
-    /** True while the orb is offering a suggestion; the eyes perk up once when it turns on. */
+    /** True while the orb is offering a suggestion: the eyes perk up once, then the orb stays eager until it turns off. */
     noticing?: boolean;
 }
 
@@ -263,6 +280,8 @@ export function CopilotOrb({ state, colors, size, theme, noticing = false }: Cop
     // A perk overrides any blink that lands on top of it.
     const motion: EyeMotion | null = perking ? "perk" : blink;
     const thinking = state === "running";
+    // Suggestions only show while idle, so the squint and the eager eye never compete.
+    const openRatio = thinking ? EYE_SQUINT_HEIGHT_RATIO : noticing ? EYE_EAGER_HEIGHT_RATIO : EYE_HEIGHT_RATIO;
     const [webglFailed, setWebglFailed] = useState(false);
     // Must be referentially stable: ShaderOrb re-creates (and loses) its GL context whenever this changes.
     const handleWebglFailed = useCallback(() => setWebglFailed(true), []);
@@ -273,7 +292,7 @@ export function CopilotOrb({ state, colors, size, theme, noticing = false }: Cop
     const energy = ORB_ENERGY[state];
 
     return (
-        <Holder $size={size}>
+        <Holder $size={size} $eager={noticing}>
             {(state === "running" || state === "awaiting-input") && <Halo colors={colors} />}
             {resolved === "animated" ? (
                 <ShaderOrb colors={colors} energy={energy} size={size} onContextFailed={handleWebglFailed} />
@@ -282,8 +301,8 @@ export function CopilotOrb({ state, colors, size, theme, noticing = false }: Cop
             )}
             <IconOverlay>
                 <Eyes $size={size} $thinking={thinking}>
-                    <Eye $size={size} $motion={motion} $squint={thinking} />
-                    <Eye $size={size} $motion={motion} $squint={thinking} />
+                    <Eye $size={size} $motion={motion} $openRatio={openRatio} />
+                    <Eye $size={size} $motion={motion} $openRatio={openRatio} />
                 </Eyes>
             </IconOverlay>
         </Holder>
