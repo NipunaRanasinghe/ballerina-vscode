@@ -548,7 +548,7 @@ export function subscribeMiniChatOpen(listener: (prompt: MiniChatPrompt) => void
 // ---------------------------------------------------------------------------
 
 /** Names the trigger, so each one is dismissed on its own. */
-export type SuggestionKind = "data-mapper-unmapped";
+export type SuggestionKind = "data-mapper-unmapped" | "flow-errors";
 
 export interface CopilotSuggestion {
     kind: SuggestionKind;
