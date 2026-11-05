@@ -560,6 +560,16 @@ export interface CopilotSuggestion {
     prompt: MiniChatPrompt;
 }
 
+/**
+ * When a second offer arrives while one is up, the more important one is shown:
+ * code that does not build outranks work that is merely unfinished. Equal or lower
+ * waits; it is raised again when its view next changes what it would offer.
+ */
+const SUGGESTION_PRIORITY: Record<SuggestionKind, number> = {
+    "flow-errors": 2,
+    "data-mapper-unmapped": 1,
+};
+
 const suggestionListeners = new Set<(suggestion: CopilotSuggestion | null) => void>();
 let currentSuggestion: CopilotSuggestion | null = null;
 
@@ -579,9 +589,15 @@ export type SuggestionAnswer = "accepted" | "dismissed";
 export const SUGGESTION_COOLDOWN_MS = 3 * 60 * 1000;
 let lastAnsweredAt: number | undefined;
 
-/** Returns false when the offer was refused before, another is already up, or the orb is cooling down. */
+/**
+ * Returns false when the kind was refused before, the orb is cooling down, or an
+ * offer of equal or higher priority is already up. A lower one gives way.
+ */
 export function offerSuggestion(suggestion: CopilotSuggestion): boolean {
-    if (currentSuggestion || dismissedSuggestions.has(suggestion.kind)) {
+    if (dismissedSuggestions.has(suggestion.kind)) {
+        return false;
+    }
+    if (currentSuggestion && SUGGESTION_PRIORITY[currentSuggestion.kind] >= SUGGESTION_PRIORITY[suggestion.kind]) {
         return false;
     }
     if (lastAnsweredAt !== undefined && Date.now() - lastAnsweredAt < SUGGESTION_COOLDOWN_MS) {

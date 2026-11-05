@@ -249,6 +249,34 @@ describe("orb proactive suggestion", () => {
         expect(mockSendSuggestionTelemetry).toHaveBeenLastCalledWith({ kind: OFFER.kind, outcome: "accepted" });
     });
 
+    describe("priority between kinds", () => {
+        const ERRORS = { ...OFFER, kind: "flow-errors" as const, text: "This flow has 2 errors." };
+
+        it("lets a more important offer replace a less important one", () => {
+            act(() => {
+                offerSuggestion(OFFER);
+            });
+            let offered = false;
+            act(() => {
+                offered = offerSuggestion(ERRORS);
+            });
+            expect(offered).toBe(true);
+            expect(bubble()!.textContent).toContain("2 errors");
+        });
+
+        it("keeps a more important offer up when a less important one arrives", () => {
+            act(() => {
+                offerSuggestion(ERRORS);
+            });
+            let offered = true;
+            act(() => {
+                offered = offerSuggestion(OFFER);
+            });
+            expect(offered).toBe(false);
+            expect(bubble()!.textContent).toContain("2 errors");
+        });
+    });
+
     describe("cooldown after an answer", () => {
         const OTHER = { ...OFFER, kind: "flow-errors" as const, text: "2 errors in this flow." };
         let now: number;

@@ -62,7 +62,8 @@ import { EXPRESSION_EXTRACTION_REGEX } from "../../constants";
 import { calculateExpressionOffsets, convertBalCompletion, updateLineRange } from "../../utils/bi";
 import { createAddSubMappingRequest } from "./utils";
 import { readMappingSignal } from "./mappingSignal";
-import { clearSuggestion, offerSuggestion } from "../../components/AgentStatusOrb/shared";
+import type { CopilotSuggestion } from "../../components/AgentStatusOrb/shared";
+import { useOrbOffer } from "../../components/AgentStatusOrb/useOrbOffer";
 import { createMiniChatPrompt } from "../../components/AgentStatusOrb/promptHandoff";
 import { FunctionForm } from "../BI/FunctionForm";
 import { UndoRedoGroup } from "../../components/UndoRedoGroup";
@@ -215,22 +216,30 @@ export function DataMapperView(props: DataMapperViewProps) {
 
     }, [model]);
 
-    // Offer to fill the mapper in once, after the model has settled. Waiting for
-    // the fetch to finish keeps the offer away from the half-built view, and the
-    // ref keeps it to one per opening: re-running on every model change would
-    // raise it again in the middle of the user's own dragging.
-    const offeredRef = useRef(false);
+    // Offer to fill the mapper in once per opening, from the first settled model with
+    // enough unmapped work. The user's own first mapping withdraws it for good: they
+    // have chosen to map by hand, and re-raising it would interrupt their dragging.
+    const [mapperOffer, setMapperOffer] = useState<CopilotSuggestion | null>(null);
+    /** Mappings in the model the offer was made from; undefined until it is made. */
+    const offeredAtMappingsRef = useRef<number | undefined>(undefined);
     useEffect(() => {
-        if (offeredRef.current || isFetching || !modelState.model) {
+        if (isFetching || !modelState.model) {
+            return;
+        }
+        const mappings = modelState.model.mappings?.length ?? 0;
+        if (offeredAtMappingsRef.current !== undefined) {
+            if (mappings !== offeredAtMappingsRef.current) {
+                setMapperOffer(null);
+            }
             return;
         }
         const signal = readMappingSignal(modelState.model);
         if (!signal.shouldOffer) {
             return;
         }
-        offeredRef.current = true;
+        offeredAtMappingsRef.current = mappings;
         const fields = `${signal.unmappedTargets} of ${signal.totalTargets} fields`;
-        offerSuggestion({
+        setMapperOffer({
             kind: "data-mapper-unmapped",
             text: `${fields} are still unmapped.`,
             action: "Map them for me",
@@ -239,10 +248,7 @@ export function DataMapperView(props: DataMapperViewProps) {
             ),
         });
     }, [isFetching, modelState.model, name]);
-
-    // The offer belongs to this view; leaving it behind would leave the orb
-    // pointing at a mapper that is no longer on screen.
-    useEffect(() => () => clearSuggestion("data-mapper-unmapped"), []);
+    useOrbOffer("data-mapper-unmapped", mapperOffer, { busy: isFetching });
 
     const hasInputs = useMemo(
         () => modelState.model?.inputs?.length > 0,

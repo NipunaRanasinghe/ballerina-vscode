@@ -227,8 +227,7 @@ export function BIFlowDiagram(props: BIFlowDiagramProps) {
     // Busy covers the same states that lock the canvas below (\`readOnly\`): the user is mid-edit.
     useFlowErrorOffer(
         model,
-        showProgressSpinner || showProgressIndicator || hasDraft || selectedNodeId !== undefined || showSidePanel,
-        isUserAuthenticated
+        showProgressSpinner || showProgressIndicator || hasDraft || selectedNodeId !== undefined || showSidePanel
     );
 
     const isMountedRef = useRef(true);

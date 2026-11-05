@@ -16,9 +16,9 @@
  * under the License.
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import type { Flow } from "@wso2/ballerina-core";
-import { clearSuggestion, offerSuggestion } from "../../../../components/AgentStatusOrb/shared";
+import { useOrbOffer } from "../../../../components/AgentStatusOrb/useOrbOffer";
 import { buildFlowErrorOffer, readFlowErrors } from "../flowErrors";
 
 /**
@@ -27,33 +27,16 @@ import { buildFlowErrorOffer, readFlowErrors } from "../flowErrors";
  * own a few seconds later.
  */
 export const FLOW_ERROR_OFFER_DELAY_MS = 10 * 1000;
+
 /**
  * Offers to fix the flow's errors once they have settled. `busy` covers anything
  * that means the user is still at work on the canvas (an open side panel, a draft
- * node, a save in flight); the offer waits for it to end. Any change to the set of
- * errors withdraws the current offer, so it never describes errors that are gone.
+ * node, a save in flight).
  */
-export function useFlowErrorOffer(model: Flow | undefined, busy: boolean, signedIn: boolean): void {
-    const messages = useMemo(() => readFlowErrors(model), [model]);
-    // A refetch hands over a new model with the same errors; keying on the text
-    // keeps that from restarting the wait.
-    const signature = messages.join("\u0000");
-    const messagesRef = useRef(messages);
-    messagesRef.current = messages;
-    const fileName = model?.fileName;
-
-    useEffect(() => {
-        clearSuggestion("flow-errors");
-        if (!signature || busy || !signedIn) {
-            return;
-        }
-        const timer = setTimeout(
-            () => offerSuggestion(buildFlowErrorOffer(messagesRef.current, fileName)),
-            FLOW_ERROR_OFFER_DELAY_MS
-        );
-        return () => clearTimeout(timer);
-    }, [signature, busy, signedIn, fileName]);
-
-    // The offer belongs to this diagram; leaving it would point at a flow no longer on screen.
-    useEffect(() => () => clearSuggestion("flow-errors"), []);
+export function useFlowErrorOffer(model: Flow | undefined, busy: boolean): void {
+    const offer = useMemo(() => {
+        const messages = readFlowErrors(model);
+        return messages.length > 0 ? buildFlowErrorOffer(messages, model?.fileName) : null;
+    }, [model]);
+    useOrbOffer("flow-errors", offer, { busy, delayMs: FLOW_ERROR_OFFER_DELAY_MS });
 }

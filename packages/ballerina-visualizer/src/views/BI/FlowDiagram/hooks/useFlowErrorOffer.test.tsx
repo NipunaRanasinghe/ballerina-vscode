@@ -26,7 +26,12 @@ import type { Flow, FlowNode } from "@wso2/ballerina-core";
 jest.mock("@wso2/ballerina-core", () => ({
     MACHINE_VIEW: new Proxy({}, { get: (_target, key) => key }),
 }));
-jest.mock("@wso2/ballerina-rpc-client", () => ({ useRpcContext: (): undefined => undefined }));
+let mockSignedIn = true;
+jest.mock("@wso2/ballerina-rpc-client", () => ({
+    useRpcContext: () => ({
+        rpcClient: { getAiPanelRpcClient: () => ({ isUserAuthenticated: () => Promise.resolve(mockSignedIn) }) },
+    }),
+}));
 
 import { FLOW_ERROR_OFFER_DELAY_MS, useFlowErrorOffer } from "./useFlowErrorOffer";
 import {
@@ -51,8 +56,8 @@ const withErrors = (...messages: string[]): Flow => ({
     ],
 });
 
-function Host({ model, busy = false, signedIn = true }: { model?: Flow; busy?: boolean; signedIn?: boolean }): null {
-    useFlowErrorOffer(model, busy, signedIn);
+function Host({ model, busy = false }: { model?: Flow; busy?: boolean }): null {
+    useFlowErrorOffer(model, busy);
     return null;
 }
 
@@ -61,11 +66,16 @@ describe("useFlowErrorOffer", () => {
     let root: Root;
     let offer: CopilotSuggestion | null;
     let unsubscribe: () => void;
-    const render = (props: React.ComponentProps<typeof Host>) => act(() => root.render(<Host {...props} />));
+    // Renders, then lets the sign-in lookup settle so the wait starts from here.
+    const render = async (props: React.ComponentProps<typeof Host>) => {
+        act(() => root.render(<Host {...props} />));
+        await act(async () => {});
+    };
     const wait = (ms: number) => act(() => jest.advanceTimersByTime(ms));
 
     beforeEach(() => {
         jest.useFakeTimers();
+        mockSignedIn = true;
         __resetSuggestionStoreForTests();
         offer = null;
         unsubscribe = subscribeSuggestion((suggestion) => (offer = suggestion));
@@ -79,8 +89,8 @@ describe("useFlowErrorOffer", () => {
         jest.useRealTimers();
     });
 
-    it("offers once the errors have stayed put for the delay", () => {
-        render({ model: withErrors("undefined symbol 'x'") });
+    it("offers once the errors have stayed put for the delay", async () => {
+        await render({ model: withErrors("undefined symbol 'x'") });
         wait(FLOW_ERROR_OFFER_DELAY_MS - 1);
         expect(offer).toBeNull();
         wait(1);
@@ -88,44 +98,41 @@ describe("useFlowErrorOffer", () => {
         expect(offer?.text).toBe("This flow has an error.");
     });
 
-    it("does not restart the wait when a refetch brings the same errors", () => {
-        render({ model: withErrors("a") });
+    it("does not restart the wait when a refetch brings the same errors", async () => {
+        await render({ model: withErrors("a") });
         wait(FLOW_ERROR_OFFER_DELAY_MS / 2);
-        render({ model: withErrors("a") });
+        await render({ model: withErrors("a") });
         wait(FLOW_ERROR_OFFER_DELAY_MS / 2);
         expect(offer).not.toBeNull();
     });
 
-    it("withdraws the offer when the errors change, and offers the new set after the delay", () => {
-        render({ model: withErrors("a") });
+    it("withdraws the offer when the errors change, and offers the new set after the delay", async () => {
+        await render({ model: withErrors("a") });
         wait(FLOW_ERROR_OFFER_DELAY_MS);
-        render({ model: withErrors("a", "b") });
+        await render({ model: withErrors("a", "b") });
         expect(offer).toBeNull();
         wait(FLOW_ERROR_OFFER_DELAY_MS);
         expect(offer?.text).toBe("This flow has 2 errors.");
     });
 
-    it("withdraws the offer once the errors are fixed", () => {
-        render({ model: withErrors("a") });
+    it("withdraws the offer once the errors are fixed", async () => {
+        await render({ model: withErrors("a") });
         wait(FLOW_ERROR_OFFER_DELAY_MS);
-        render({ model: withErrors() });
+        await render({ model: withErrors() });
         expect(offer).toBeNull();
     });
 
-    it("waits while the user is mid-edit and when Copilot is not signed in", () => {
-        render({ model: withErrors("a"), busy: true });
+    it("waits while the user is mid-edit", async () => {
+        await render({ model: withErrors("a"), busy: true });
         wait(FLOW_ERROR_OFFER_DELAY_MS);
         expect(offer).toBeNull();
-        render({ model: withErrors("a"), signedIn: false });
-        wait(FLOW_ERROR_OFFER_DELAY_MS);
-        expect(offer).toBeNull();
-        render({ model: withErrors("a") });
+        await render({ model: withErrors("a") });
         wait(FLOW_ERROR_OFFER_DELAY_MS);
         expect(offer).not.toBeNull();
     });
 
-    it("withdraws the offer when the diagram closes", () => {
-        render({ model: withErrors("a") });
+    it("withdraws the offer when the diagram closes", async () => {
+        await render({ model: withErrors("a") });
         wait(FLOW_ERROR_OFFER_DELAY_MS);
         act(() => root.render(<></>));
         expect(offer).toBeNull();
