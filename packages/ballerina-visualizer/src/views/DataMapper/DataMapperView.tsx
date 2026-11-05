@@ -62,7 +62,7 @@ import { EXPRESSION_EXTRACTION_REGEX } from "../../constants";
 import { calculateExpressionOffsets, convertBalCompletion, updateLineRange } from "../../utils/bi";
 import { createAddSubMappingRequest } from "./utils";
 import { readMappingSignal } from "./mappingSignal";
-import type { CopilotSuggestion } from "../../components/AgentStatusOrb/shared";
+import type { CopilotSuggestion } from "../../components/AgentStatusOrb/suggestions";
 import { useOrbOffer } from "../../components/AgentStatusOrb/useOrbOffer";
 import { createMiniChatPrompt } from "../../components/AgentStatusOrb/promptHandoff";
 import { FunctionForm } from "../BI/FunctionForm";

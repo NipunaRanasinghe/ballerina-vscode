@@ -21,11 +21,6 @@ import { act } from "react-dom/test-utils";
 import { createRoot, Root } from "react-dom/client";
 import type { Flow, FlowNode } from "@wso2/ballerina-core";
 
-// The core barrel re-exports ESM-only LS transport modules jest cannot load; the
-// orb store only needs the view enum from it.
-jest.mock("@wso2/ballerina-core", () => ({
-    MACHINE_VIEW: new Proxy({}, { get: (_target, key) => key }),
-}));
 let mockSignedIn = true;
 jest.mock("@wso2/ballerina-rpc-client", () => ({
     useRpcContext: () => ({
@@ -38,7 +33,7 @@ import {
     __resetSuggestionStoreForTests,
     CopilotSuggestion,
     subscribeSuggestion,
-} from "../../../../components/AgentStatusOrb/shared";
+} from "../../../../components/AgentStatusOrb/suggestions";
 
 declare global {
     // eslint-disable-next-line no-var

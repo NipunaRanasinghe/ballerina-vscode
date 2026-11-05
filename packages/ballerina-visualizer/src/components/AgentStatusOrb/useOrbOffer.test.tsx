@@ -20,11 +20,6 @@ import * as React from "react";
 import { act } from "react-dom/test-utils";
 import { createRoot, Root } from "react-dom/client";
 
-// The core barrel re-exports ESM-only LS transport modules jest cannot load; the
-// orb store only needs the view enum from it.
-jest.mock("@wso2/ballerina-core", () => ({
-    MACHINE_VIEW: new Proxy({}, { get: (_target, key) => key }),
-}));
 let mockSignedIn = true;
 jest.mock("@wso2/ballerina-rpc-client", () => ({
     useRpcContext: () => ({
@@ -38,7 +33,7 @@ import {
     clearSuggestion,
     CopilotSuggestion,
     subscribeSuggestion,
-} from "./shared";
+} from "./suggestions";
 import { createMiniChatPrompt } from "./promptHandoff";
 
 declare global {

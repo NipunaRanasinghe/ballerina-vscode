@@ -40,11 +40,13 @@ import {
     subscribeMiniChatOpen,
     syncOrbThemeFromSetting,
     useAmbientCopilotPresence,
+} from "./shared";
+import {
     clearSuggestion,
     subscribeSuggestion,
     type CopilotSuggestion,
     type SuggestionKind,
-} from "./shared";
+} from "./suggestions";
 import { createMiniChatPrompt, MiniChatPrompt } from "./promptHandoff";
 import { useAssistantName } from "../../hooks/useProductMode";
 

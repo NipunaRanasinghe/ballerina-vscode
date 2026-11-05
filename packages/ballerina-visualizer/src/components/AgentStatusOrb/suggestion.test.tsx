@@ -50,13 +50,13 @@ jest.mock("./MiniChat", () => ({
 }));
 
 import { AgentStatusOrb } from "./index";
+import { __resetAgentRunStatusStoreForTests } from "./shared";
 import {
-    __resetAgentRunStatusStoreForTests,
     __resetSuggestionStoreForTests,
     clearSuggestion,
     offerSuggestion,
     SUGGESTION_COOLDOWN_MS,
-} from "./shared";
+} from "./suggestions";
 import { createMiniChatPrompt } from "./promptHandoff";
 
 declare global {

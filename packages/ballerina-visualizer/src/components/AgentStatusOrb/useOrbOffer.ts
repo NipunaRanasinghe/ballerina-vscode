@@ -18,7 +18,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
-import { clearSuggestion, CopilotSuggestion, offerSuggestion, SuggestionKind } from "./shared";
+import { clearSuggestion, CopilotSuggestion, offerSuggestion, SuggestionKind } from "./suggestions";
 
 export interface OrbOfferOptions {
     /** The user is mid-task in the view; the offer waits until this clears. */
