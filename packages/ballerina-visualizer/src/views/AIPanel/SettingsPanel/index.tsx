@@ -224,12 +224,18 @@ const GENERAL_TOGGLES: GeneralToggle[] = [
         label: "Follow-up suggestions",
         description: "Suggest follow-up actions after Copilot responds.",
     },
+    {
+        key: "proactiveSuggestions",
+        label: "Proactive suggestions",
+        description: "Let the orb offer help on its own, such as filling in unmapped data mapper fields.",
+    },
 ];
 
 /** Until the host reports, each switch shows its setting's default. */
 const GENERAL_TOGGLE_DEFAULTS: Record<GeneralToggleKey, boolean> = {
     showOrb: true,
     followupSuggestions: true,
+    proactiveSuggestions: true,
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────

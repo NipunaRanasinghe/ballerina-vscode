@@ -30,9 +30,15 @@ const STATUS_BAR_LABEL_MAX = 40;
 /** Application-scoped setting (`ballerina.copilot.showOrb`) toggling the floating orb. */
 const COPILOT_CONFIG_SECTION = 'ballerina.copilot';
 const SHOW_ORB_SETTING = 'showOrb';
+/** `ballerina.copilot.proactiveSuggestions`: whether the orb may offer help on its own. */
+const PROACTIVE_SUGGESTIONS_SETTING = 'proactiveSuggestions';
 
 function isOrbVisibleInSettings(): boolean {
     return vscode.workspace.getConfiguration(COPILOT_CONFIG_SECTION).get<boolean>(SHOW_ORB_SETTING, true);
+}
+
+function areSuggestionsOnInSettings(): boolean {
+    return vscode.workspace.getConfiguration(COPILOT_CONFIG_SECTION).get<boolean>(PROACTIVE_SUGGESTIONS_SETTING, true);
 }
 
 /**
@@ -66,12 +72,15 @@ class AgentStatusManager {
         if (this.statusBarItem) {
             return;
         }
-        this.status = { ...this.status, orbHidden: !isOrbVisibleInSettings() };
+        this.status = { ...this.status, orbHidden: !isOrbVisibleInSettings(), suggestionsOff: !areSuggestionsOnInSettings() };
         // Follows the setting wherever it changes: the Copilot settings toggle, the orb's
         // menu, or a hand edit of settings.json.
         context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((event) => {
             if (event.affectsConfiguration(`${COPILOT_CONFIG_SECTION}.${SHOW_ORB_SETTING}`)) {
                 this.applyOrbHidden(!isOrbVisibleInSettings());
+            }
+            if (event.affectsConfiguration(`${COPILOT_CONFIG_SECTION}.${PROACTIVE_SUGGESTIONS_SETTING}`)) {
+                this.applySuggestionsOff(!areSuggestionsOnInSettings());
             }
         }));
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
@@ -179,6 +188,14 @@ class AgentStatusManager {
             return;
         }
         this.status = { ...this.status, orbHidden: hidden, timestamp: Date.now() };
+        this.broadcast();
+    }
+
+    private applySuggestionsOff(off: boolean): void {
+        if (!!this.status.suggestionsOff === off) {
+            return;
+        }
+        this.status = { ...this.status, suggestionsOff: off, timestamp: Date.now() };
         this.broadcast();
     }
 

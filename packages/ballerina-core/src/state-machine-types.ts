@@ -752,6 +752,8 @@ export interface AgentRunStatus {
     aiPanelOpen: boolean;
     /** `ballerina.copilot.showOrb` is off; Copilot is reached from the editor title bar's Copilot button. */
     orbHidden?: boolean;
+    /** `ballerina.copilot.proactiveSuggestions` is off; the orb shows no offers of its own. */
+    suggestionsOff?: boolean;
     /** Generation (run) the status belongs to, when a run is/was active. */
     generationId?: string;
     /** Epoch millis of the last status change. */

@@ -985,7 +985,7 @@ export interface SetCopilotOrbVisibleRequest {
     visible: boolean;
 }
 /** Boolean `ballerina.copilot.*` settings the Copilot settings panel toggles, keyed relative to that section. */
-export type CopilotToggleSetting = 'followupSuggestions';
+export type CopilotToggleSetting = 'followupSuggestions' | 'proactiveSuggestions';
 export type CopilotToggleSettings = Record<CopilotToggleSetting, boolean>;
 export interface SetCopilotToggleSettingRequest {
     key: CopilotToggleSetting;

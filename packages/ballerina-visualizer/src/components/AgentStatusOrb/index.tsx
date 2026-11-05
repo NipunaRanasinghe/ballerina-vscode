@@ -533,7 +533,9 @@ export function AgentStatusOrb() {
     // The suggestion rides in the same pill as the invite rather than a second
     // box beside it. Gated on `inviteHosted`, so nothing is offered while the
     // agent is mid-run — the pill is the idle surface.
-    const visibleSuggestion = inviteHosted && !dragging && !snapping && !miniOpen ? suggestion : null;
+    // `ballerina.copilot.proactiveSuggestions` off keeps any offer out of sight.
+    const visibleSuggestion =
+        inviteHosted && !status?.suggestionsOff && !dragging && !snapping && !miniOpen ? suggestion : null;
     const inviteVisible =
         inviteHosted &&
         !dragging &&

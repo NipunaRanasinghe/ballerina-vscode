@@ -382,6 +382,12 @@
                     "default": true,
                     "scope": "resource",
                     "description": "Suggest follow-up actions after Copilot responds in the AI chat."
+                },
+                "ballerina.copilot.proactiveSuggestions": {
+                    "type": "boolean",
+                    "default": true,
+                    "scope": "resource",
+                    "description": "Let the Copilot orb offer help on its own, such as filling in unmapped fields in the data mapper."
                 }
             }
         },

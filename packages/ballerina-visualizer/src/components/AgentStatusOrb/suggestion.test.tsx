@@ -211,4 +211,14 @@ describe("orb proactive suggestion", () => {
         });
         expect(bubble()).not.toBeNull();
     });
+
+    it("shows no offer while proactive suggestions are turned off, and shows it once turned back on", () => {
+        notify({ ...IDLE, suggestionsOff: true } as AgentRunStatus);
+        act(() => {
+            offerSuggestion(OFFER);
+        });
+        expect(bubble()).toBeNull();
+        notify(IDLE);
+        expect(bubble()).not.toBeNull();
+    });
 });
