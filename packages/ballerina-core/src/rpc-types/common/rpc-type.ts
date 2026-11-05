@@ -36,6 +36,7 @@ import {
     ProjectFileResponse,
     WorkspaceRootResponse,
     ShowErrorMessageRequest,
+    CopilotSuggestionTelemetryRequest,
     WorkspaceTypeResponse,
     SetWebviewCacheRequestParam,
     ShowInfoModalRequest,
@@ -64,6 +65,7 @@ export const additionalTriggerSearchEnabled: RequestType<void, boolean> = { meth
 export const isNPSupported: RequestType<void, boolean> = { method: `${_preFix}/isNPSupported` };
 export const getWorkspaceRoot: RequestType<void, WorkspaceRootResponse> = { method: `${_preFix}/getWorkspaceRoot` };
 export const showErrorMessage: NotificationType<ShowErrorMessageRequest> = { method: `${_preFix}/showErrorMessage` };
+export const sendCopilotSuggestionTelemetry: NotificationType<CopilotSuggestionTelemetryRequest> = { method: `${_preFix}/sendCopilotSuggestionTelemetry` };
 export const showInformationModal: RequestType<ShowInfoModalRequest, string> = { method: `${_preFix}/showInformationModal` };
 export const showQuickPick: RequestType<ShowQuickPickRequest, QuickPickItem | undefined> = { method: `${_preFix}/showQuickPick` };
 export const getCurrentProjectTomlValues: RequestType<void, void> = { method: `${_preFix}/getCurrentProjectTomlValues` };

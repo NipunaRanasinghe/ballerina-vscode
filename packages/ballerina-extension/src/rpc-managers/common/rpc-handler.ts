@@ -30,6 +30,7 @@ import {
     SetWebviewCache,
     SetWebviewCacheRequestParam,
     ShowErrorMessageRequest,
+    CopilotSuggestionTelemetryRequest,
     showInformationModal,
     WorkspaceFileRequest,
     downloadSelectedSampleFromGithub,
@@ -58,6 +59,7 @@ import {
     selectFileOrFolderPath,
     setPreferredTryItOption,
     showErrorMessage,
+    sendCopilotSuggestionTelemetry,
     ShowInfoModalRequest,
     showQuickPick,
     ShowQuickPickRequest
@@ -84,6 +86,7 @@ export function registerCommonRpcHandlers(messenger: Messenger) {
     messenger.onRequest(isNPSupported, () => rpcManger.isNPSupported());
     messenger.onRequest(getWorkspaceRoot, () => rpcManger.getWorkspaceRoot());
     messenger.onNotification(showErrorMessage, (args: ShowErrorMessageRequest) => rpcManger.showErrorMessage(args));
+    messenger.onNotification(sendCopilotSuggestionTelemetry, (args: CopilotSuggestionTelemetryRequest) => rpcManger.sendCopilotSuggestionTelemetry(args));
     messenger.onRequest(showInformationModal, (params: ShowInfoModalRequest) => rpcManger.showInformationModal(params));
     messenger.onRequest(showQuickPick, (params: ShowQuickPickRequest) => rpcManger.showQuickPick(params));
     messenger.onRequest(getCurrentProjectTomlValues, () => rpcManger.getCurrentProjectTomlValues());

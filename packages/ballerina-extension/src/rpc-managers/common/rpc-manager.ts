@@ -45,6 +45,7 @@ import {
     SampleDownloadRequest,
     SettingsTomlValues,
     ShowErrorMessageRequest,
+    CopilotSuggestionTelemetryRequest,
     SyntaxTree,
     VISIBILITY,
     TypeResponse,
@@ -96,6 +97,7 @@ import {
 } from "./utils";
 import { getBalaDirPath, getBalaPath } from "./bala";
 import { VisualizerWebview } from "../../views/visualizer/webview";
+import { sendCopilotSuggestionTelemetry } from "../../features/ai/utils/suggestion-telemetry";
 
 export class CommonRpcManager implements CommonRPCAPI {
     async getTypeCompletions(): Promise<TypeResponse> {
@@ -355,6 +357,10 @@ export class CommonRpcManager implements CommonRPCAPI {
         const messageWithLink = new MarkdownString(params.message);
         messageWithLink.appendMarkdown(`\n\nPlease [create an issue](${PRODUCT_INTEGRATOR_ISSUES_URL}) if the issue persists.`);
         window.showErrorMessage(messageWithLink.value);
+    }
+
+    async sendCopilotSuggestionTelemetry(params: CopilotSuggestionTelemetryRequest): Promise<void> {
+        await sendCopilotSuggestionTelemetry(params);
     }
 
     async showInformationModal(params: ShowInfoModalRequest): Promise<string> {

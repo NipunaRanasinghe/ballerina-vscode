@@ -31,6 +31,7 @@ const CHOREO_ORG_ID = process.env.VSCODE_CHOREO_ORG_ID ? process.env.VSCODE_CHOR
 // Whitelist of component names
 const WHITELISTED_COMPONENTS = new Set([
     'ballerina.ai.generation',
+    'ballerina.ai.suggestion',
 ]);
 
 // Whitelist of specific event names

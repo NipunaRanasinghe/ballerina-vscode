@@ -569,9 +569,22 @@ let currentSuggestion: CopilotSuggestion | null = null;
  */
 const dismissedSuggestions = new Set<SuggestionKind>();
 
-/** Returns false when the offer was refused before, or another is already up. */
+/** How the user answered an offer. Withdrawing one (its view closed) is not an answer. */
+export type SuggestionAnswer = "accepted" | "dismissed";
+
+/**
+ * After the user answers an offer, of any kind, the orb makes no other offer for
+ * this long. Without it, each new kind adds another interruption on top of the last.
+ */
+export const SUGGESTION_COOLDOWN_MS = 3 * 60 * 1000;
+let lastAnsweredAt: number | undefined;
+
+/** Returns false when the offer was refused before, another is already up, or the orb is cooling down. */
 export function offerSuggestion(suggestion: CopilotSuggestion): boolean {
     if (currentSuggestion || dismissedSuggestions.has(suggestion.kind)) {
+        return false;
+    }
+    if (lastAnsweredAt !== undefined && Date.now() - lastAnsweredAt < SUGGESTION_COOLDOWN_MS) {
         return false;
     }
     currentSuggestion = suggestion;
@@ -580,23 +593,27 @@ export function offerSuggestion(suggestion: CopilotSuggestion): boolean {
 }
 
 /**
- * Withdraws the live offer. `dismissed` marks it as refused rather than merely
- * over, which is what stops the same trigger raising it again.
+ * Ends the live offer. With no `answer` it is merely withdrawn. An answer starts
+ * the cooldown, and "dismissed" also stops the same kind being offered again.
  */
-export function clearSuggestion(kind?: SuggestionKind, dismissed = false): void {
+export function clearSuggestion(kind?: SuggestionKind, answer?: SuggestionAnswer): void {
     if (!currentSuggestion || (kind && currentSuggestion.kind !== kind)) {
         return;
     }
-    if (dismissed) {
+    if (answer) {
+        lastAnsweredAt = Date.now();
+    }
+    if (answer === "dismissed") {
         dismissedSuggestions.add(currentSuggestion.kind);
     }
     currentSuggestion = null;
     suggestionListeners.forEach((listener) => listener(null));
 }
 
-/** Clears both the live offer and the record of what was refused. */
+/** Clears the live offer, the record of what was refused, and the cooldown. */
 export function __resetSuggestionStoreForTests(): void {
     currentSuggestion = null;
+    lastAnsweredAt = undefined;
     dismissedSuggestions.clear();
     suggestionListeners.clear();
 }

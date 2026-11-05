@@ -34,6 +34,7 @@ jest.mock("@wso2/ballerina-core", () => ({
 }));
 
 let mockRpcClient: unknown;
+const mockSendSuggestionTelemetry = jest.fn();
 jest.mock("@wso2/ballerina-rpc-client", () => ({
     useRpcContext: () => ({ rpcClient: mockRpcClient }),
 }));
@@ -110,6 +111,7 @@ describe("dozing orb", () => {
                 getAgentRunStatus: jest.fn().mockResolvedValue(undefined),
                 getCopilotOrbTheme: jest.fn().mockResolvedValue("animated"),
                 executeCommand: jest.fn().mockResolvedValue(undefined),
+                sendCopilotSuggestionTelemetry: mockSendSuggestionTelemetry,
             }),
             onAgentRunStatusChanged: jest.fn((cb: (status: AgentRunStatus) => void) => {
                 pushed = cb;

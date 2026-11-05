@@ -34,6 +34,7 @@ jest.mock("@wso2/ballerina-core", () => ({
 }));
 
 let mockRpcClient: unknown;
+const mockSendSuggestionTelemetry = jest.fn();
 jest.mock("@wso2/ballerina-rpc-client", () => ({
     useRpcContext: () => ({ rpcClient: mockRpcClient }),
 }));
@@ -54,6 +55,7 @@ import {
     __resetSuggestionStoreForTests,
     clearSuggestion,
     offerSuggestion,
+    SUGGESTION_COOLDOWN_MS,
 } from "./shared";
 import { createMiniChatPrompt } from "./promptHandoff";
 
@@ -107,6 +109,7 @@ describe("orb proactive suggestion", () => {
                 getAgentRunStatus: jest.fn().mockResolvedValue(undefined),
                 getCopilotOrbTheme: jest.fn().mockResolvedValue("animated"),
                 executeCommand: jest.fn().mockResolvedValue(undefined),
+                sendCopilotSuggestionTelemetry: mockSendSuggestionTelemetry,
             }),
             onAgentRunStatusChanged: jest.fn((cb: (status: AgentRunStatus) => void) => {
                 pushed = cb;
@@ -146,7 +149,7 @@ describe("orb proactive suggestion", () => {
             offerSuggestion(OFFER);
         });
         expect(container.querySelector('input[placeholder="How can I help?"]')).toBeNull();
-        act(() => clearSuggestion(OFFER.kind, true));
+        act(() => clearSuggestion(OFFER.kind, "dismissed"));
         expect(bubble()).toBeNull();
         expect(pillShown()).toBe(false);
         expect(container.querySelector('input[placeholder="How can I help?"]')).not.toBeNull();
@@ -220,5 +223,72 @@ describe("orb proactive suggestion", () => {
         expect(bubble()).toBeNull();
         notify(IDLE);
         expect(bubble()).not.toBeNull();
+    });
+
+    it("reports each offer once when shown, and how it was answered", () => {
+        mockSendSuggestionTelemetry.mockClear();
+        act(() => {
+            offerSuggestion(OFFER);
+        });
+        // Dropping out of sight during a run and coming back is still the same offer.
+        notify({ ...IDLE, state: "running" } as AgentRunStatus);
+        notify(IDLE);
+        click(dismiss()!);
+        expect(mockSendSuggestionTelemetry.mock.calls.map(([event]) => event)).toEqual([
+            { kind: OFFER.kind, outcome: "shown" },
+            { kind: OFFER.kind, outcome: "dismissed" },
+        ]);
+    });
+
+    it("reports an offer taken up", () => {
+        mockSendSuggestionTelemetry.mockClear();
+        act(() => {
+            offerSuggestion(OFFER);
+        });
+        click(accept()!);
+        expect(mockSendSuggestionTelemetry).toHaveBeenLastCalledWith({ kind: OFFER.kind, outcome: "accepted" });
+    });
+
+    describe("cooldown after an answer", () => {
+        const OTHER = { ...OFFER, kind: "flow-errors" as const, text: "2 errors in this flow." };
+        let now: number;
+        beforeEach(() => {
+            now = 1_000_000;
+            jest.spyOn(Date, "now").mockImplementation(() => now);
+        });
+        afterEach(() => jest.restoreAllMocks());
+
+        it.each([
+            ["taken up", () => click(accept()!)],
+            ["dismissed", () => click(dismiss()!)],
+        ])("holds back any other kind for a while once an offer is %s", (_answer, answer) => {
+            act(() => {
+                offerSuggestion(OFFER);
+            });
+            answer();
+            now += SUGGESTION_COOLDOWN_MS - 1;
+            let offered = true;
+            act(() => {
+                offered = offerSuggestion(OTHER);
+            });
+            expect(offered).toBe(false);
+            now += 1;
+            act(() => {
+                offered = offerSuggestion(OTHER);
+            });
+            expect(offered).toBe(true);
+        });
+
+        it("does not cool down after an offer is merely withdrawn", () => {
+            act(() => {
+                offerSuggestion(OFFER);
+            });
+            act(() => clearSuggestion(OFFER.kind));
+            let offered = false;
+            act(() => {
+                offered = offerSuggestion(OTHER);
+            });
+            expect(offered).toBe(true);
+        });
     });
 });

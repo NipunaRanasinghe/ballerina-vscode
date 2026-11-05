@@ -37,6 +37,7 @@ import {
     RunExternalCommandResponse,
     SampleDownloadRequest,
     ShowErrorMessageRequest,
+    CopilotSuggestionTelemetryRequest,
     TypeResponse,
     WorkspaceFileRequest,
     WorkspaceRootResponse,
@@ -67,6 +68,7 @@ import {
     selectFileOrFolderPath,
     setPreferredTryItOption,
     showErrorMessage,
+    sendCopilotSuggestionTelemetry,
     SetWebviewCacheRequestParam,
     SetWebviewCache,
     RestoreWebviewCache,
@@ -153,6 +155,10 @@ export class CommonRpcClient implements CommonRPCAPI {
 
     showErrorMessage(params: ShowErrorMessageRequest): void {
         return this._messenger.sendNotification(showErrorMessage, HOST_EXTENSION, params);
+    }
+
+    sendCopilotSuggestionTelemetry(params: CopilotSuggestionTelemetryRequest): void {
+        return this._messenger.sendNotification(sendCopilotSuggestionTelemetry, HOST_EXTENSION, params);
     }
 
     showInformationModal(params: ShowInfoModalRequest): Promise<string> {

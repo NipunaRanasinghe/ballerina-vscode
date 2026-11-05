@@ -47,3 +47,4 @@ export const CMP_NOTEBOOK = "component.notebook";
 export const CMP_OPEN_VSCODE_URL = "component.open.vscode.url";
 
 export const CMP_BALLERINA_AI_GENERATION = "ballerina.ai.generation";
+export const CMP_BALLERINA_AI_SUGGESTION = "ballerina.ai.suggestion";

@@ -35,6 +35,7 @@ import {
     ProjectFileResponse,
     WorkspaceRootResponse,
     ShowErrorMessageRequest,
+    CopilotSuggestionTelemetryRequest,
     WorkspaceTypeResponse,
     SetWebviewCacheRequestParam,
     ShowInfoModalRequest,
@@ -63,6 +64,7 @@ export interface CommonRPCAPI {
     isNPSupported: () => Promise<boolean>;
     getWorkspaceRoot: () => Promise<WorkspaceRootResponse>;
     showErrorMessage: (params: ShowErrorMessageRequest) => void;
+    sendCopilotSuggestionTelemetry: (params: CopilotSuggestionTelemetryRequest) => void;
     showInformationModal: (params: ShowInfoModalRequest) => Promise<string>;
     showQuickPick: (params: ShowQuickPickRequest) => Promise<QuickPickItem | undefined>;
     getCurrentProjectTomlValues: () => Promise<Record<string, any>>;

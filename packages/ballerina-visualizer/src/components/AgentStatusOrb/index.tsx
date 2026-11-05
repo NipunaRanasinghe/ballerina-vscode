@@ -43,6 +43,7 @@ import {
     clearSuggestion,
     subscribeSuggestion,
     type CopilotSuggestion,
+    type SuggestionKind,
 } from "./shared";
 import { createMiniChatPrompt, MiniChatPrompt } from "./promptHandoff";
 import { useAssistantName } from "../../hooks/useProductMode";
@@ -544,6 +545,17 @@ export function AgentStatusOrb() {
         // A suggestion shows itself; the rest of the time the pill waits for the pointer.
         (!!visibleSuggestion || hovered || orbFocused || inviteFocused || inviteText.length > 0);
 
+    const reportSuggestion = (kind: SuggestionKind, outcome: "shown" | "accepted" | "dismissed") =>
+        rpcClient?.getCommonRpcClient().sendCopilotSuggestionTelemetry({ kind, outcome });
+    // Counted once per offer: it can drop out of sight (a drag, the mini chat) and come back.
+    const reportedSuggestionRef = useRef<CopilotSuggestion | null>(null);
+    useEffect(() => {
+        if (visibleSuggestion && reportedSuggestionRef.current !== visibleSuggestion) {
+            reportedSuggestionRef.current = visibleSuggestion;
+            reportSuggestion(visibleSuggestion.kind, "shown");
+        }
+    }, [visibleSuggestion]);
+
     // A draft left behind when the orb hides, a run starts or the mini chat takes over would
     // hold the box open the moment it came back with the pointer nowhere near it. In the first
     // two cases the input also unmounts without ever blurring.
@@ -600,7 +612,8 @@ export function AgentStatusOrb() {
     // the user can edit or abandon it.
     const acceptSuggestion = (offer: CopilotSuggestion) => {
         miniPromptRef.current = offer.prompt;
-        clearSuggestion(offer.kind);
+        clearSuggestion(offer.kind, "accepted");
+        reportSuggestion(offer.kind, "accepted");
         setMiniChatKey((key) => key + 1);
         setMiniOpen(true);
     };
@@ -770,7 +783,10 @@ export function AgentStatusOrb() {
                                         type="button"
                                         title="Not now"
                                         aria-label="Dismiss this suggestion"
-                                        onClick={() => clearSuggestion(visibleSuggestion.kind, true)}
+                                        onClick={() => {
+                                            reportSuggestion(visibleSuggestion.kind, "dismissed");
+                                            clearSuggestion(visibleSuggestion.kind, "dismissed");
+                                        }}
                                     >
                                         <span className="codicon codicon-close" />
                                     </SuggestionDismiss>

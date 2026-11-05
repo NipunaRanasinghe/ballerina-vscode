@@ -133,3 +133,5 @@ export const TM_EVENT_BALLERINA_AI_GENERATION_TRUNCATED = "ballerina.ai.generati
 export const TM_EVENT_BALLERINA_AI_GENERATION_KEPT = "ballerina.ai.generation.kept";
 export const TM_EVENT_BALLERINA_AI_GENERATION_DISCARD = "ballerina.ai.generation.discard";
 export const TM_EVENT_BALLERINA_AI_GENERATION_FEEDBACK = "ballerina.ai.generation.feedback";
+// Proactive offers from the Copilot orb; `suggestion.outcome` is shown, accepted or dismissed.
+export const TM_EVENT_BALLERINA_AI_SUGGESTION = "ballerina.ai.suggestion";

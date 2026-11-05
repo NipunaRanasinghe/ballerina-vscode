@@ -109,6 +109,13 @@ export interface ShowErrorMessageRequest {
     message: string;
 }
 
+/** One step in the life of a proactive offer from the Copilot orb, for telemetry. */
+export interface CopilotSuggestionTelemetryRequest {
+    /** The trigger, e.g. "flow-errors". */
+    kind: string;
+    outcome: "shown" | "accepted" | "dismissed";
+}
+
 export interface ShowInfoModalRequest {
     message: string;
     detail?: string;
