@@ -28,7 +28,7 @@ import type { MiniChatPrompt } from "./promptHandoff";
 // ---------------------------------------------------------------------------
 
 /** Names the trigger, so each one is dismissed on its own. */
-export type SuggestionKind = "data-mapper-unmapped" | "flow-errors";
+export type SuggestionKind = "data-mapper-unmapped" | "flow-errors" | "empty-body";
 
 export interface CopilotSuggestion {
     kind: SuggestionKind;
@@ -46,7 +46,8 @@ export interface CopilotSuggestion {
  * waits; it is raised again when its view next changes what it would offer.
  */
 const SUGGESTION_PRIORITY: Record<SuggestionKind, number> = {
-    "flow-errors": 2,
+    "flow-errors": 3,
+    "empty-body": 2,
     "data-mapper-unmapped": 1,
 };
 

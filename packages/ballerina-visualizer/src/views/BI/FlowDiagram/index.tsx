@@ -73,7 +73,7 @@ import {
 import { findCurrentIntegrationCategory } from "../../../utils/function-category";
 import { pollActivityList } from "./activityRefresh";
 import { useDraftNodeManager } from "./hooks/useDraftNodeManager";
-import { useFlowErrorOffer } from "./hooks/useFlowErrorOffer";
+import { useFlowOffers } from "./hooks/useFlowOffers";
 import { NodePosition, STNode } from "@wso2/syntax-tree";
 import { View, ProgressIndicator, ThemeColors } from "@wso2/ui-toolkit";
 import { applyModifications, textToModifications } from "../../../utils/utils";
@@ -225,7 +225,7 @@ export function BIFlowDiagram(props: BIFlowDiagramProps) {
     } = useDraftNodeManager(model);
 
     // Busy covers the same states that lock the canvas below (\`readOnly\`): the user is mid-edit.
-    useFlowErrorOffer(
+    useFlowOffers(
         model,
         showProgressSpinner || showProgressIndicator || hasDraft || selectedNodeId !== undefined || showSidePanel
     );

@@ -28,7 +28,7 @@ jest.mock("@wso2/ballerina-rpc-client", () => ({
     }),
 }));
 
-import { FLOW_ERROR_OFFER_DELAY_MS, useFlowErrorOffer } from "./useFlowErrorOffer";
+import { EMPTY_BODY_OFFER_DELAY_MS, FLOW_ERROR_OFFER_DELAY_MS, useFlowOffers } from "./useFlowOffers";
 import {
     __resetSuggestionStoreForTests,
     CopilotSuggestion,
@@ -52,11 +52,11 @@ const withErrors = (...messages: string[]): Flow => ({
 });
 
 function Host({ model, busy = false }: { model?: Flow; busy?: boolean }): null {
-    useFlowErrorOffer(model, busy);
+    useFlowOffers(model, busy);
     return null;
 }
 
-describe("useFlowErrorOffer", () => {
+describe("useFlowOffers", () => {
     let container: HTMLDivElement;
     let root: Root;
     let offer: CopilotSuggestion | null;
@@ -131,5 +131,47 @@ describe("useFlowErrorOffer", () => {
         wait(FLOW_ERROR_OFFER_DELAY_MS);
         act(() => root.render(<></>));
         expect(offer).toBeNull();
+    });
+
+    describe("empty body", () => {
+        const start = {
+            id: "start",
+            codedata: { node: "EVENT_START" },
+            metadata: { label: "Start", data: { kind: "Function", label: "getName", return: "string" } },
+        } as unknown as FlowNode;
+        const emptyFunction = (...messages: string[]): Flow => ({
+            fileName: "main.bal",
+            nodes: [
+                {
+                    ...start,
+                    diagnostics: {
+                        hasDiagnostics: messages.length > 0,
+                        diagnostics: messages.map((message) => ({ message, severity: "ERROR" })),
+                    },
+                } as FlowNode,
+            ],
+        });
+
+        it("offers to implement it once it has stayed empty for the delay", async () => {
+            await render({ model: emptyFunction() });
+            wait(EMPTY_BODY_OFFER_DELAY_MS - 1);
+            expect(offer).toBeNull();
+            wait(1);
+            expect(offer?.kind).toBe("empty-body");
+            expect(offer?.text).toBe("getName has no logic yet.");
+        });
+
+        it("offers to implement it instead of fixing the errors the empty body causes", async () => {
+            await render({ model: emptyFunction("this function must return a result") });
+            wait(EMPTY_BODY_OFFER_DELAY_MS);
+            expect(offer?.kind).toBe("empty-body");
+        });
+
+        it("withdraws the offer once the user adds a node", async () => {
+            await render({ model: emptyFunction() });
+            wait(EMPTY_BODY_OFFER_DELAY_MS);
+            await render({ model: { ...emptyFunction(), nodes: [start, { id: "v", codedata: { node: "VARIABLE" } } as FlowNode] } });
+            expect(offer).toBeNull();
+        });
     });
 });
