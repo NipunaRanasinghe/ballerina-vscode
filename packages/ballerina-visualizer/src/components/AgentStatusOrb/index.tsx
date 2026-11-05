@@ -66,6 +66,30 @@ const DRAG_THRESHOLD = 5;
 const SNAP_ANIMATION_MS = 250;
 const WIDGET_GAP = 10;
 const INVITE_FADE_MS = 160;
+/** No pointer, keyboard or wheel input anywhere in the webview for this long and the idle orb dozes. */
+const DOZE_AFTER_MS = 2 * 60 * 1000;
+const ACTIVITY_EVENTS = ["pointermove", "pointerdown", "keydown", "wheel"] as const;
+
+/** True once the user has been away from the webview for `ms`; any input resets it. */
+function useUserAway(ms: number): boolean {
+    const [away, setAway] = useState(false);
+    useEffect(() => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const onActivity = () => {
+            clearTimeout(timer);
+            setAway(false);
+            timer = setTimeout(() => setAway(true), ms);
+        };
+        onActivity();
+        ACTIVITY_EVENTS.forEach((type) => window.addEventListener(type, onActivity, { capture: true, passive: true }));
+        return () => {
+            clearTimeout(timer);
+            ACTIVITY_EVENTS.forEach((type) => window.removeEventListener(type, onActivity, { capture: true }));
+        };
+    }, [ms]);
+    return away;
+}
+
 /** Keeps the context menu this far inside the viewport edges. */
 const MENU_EDGE_MARGIN = 8;
 const MENU_WIDTH = 180;
@@ -435,6 +459,7 @@ export function AgentStatusOrb() {
     useEffect(() => subscribeSuggestion(setSuggestion), []);
 
     useEffect(() => subscribeOrbSuppressed(setOrbSuppressed), []);
+    const userAway = useUserAway(DOZE_AFTER_MS);
 
     // `ballerina.copilot.showOrb` is off: the editor title bar's Copilot button stands in.
     const orbHiddenByUser = !!status?.orbHidden;
@@ -534,6 +559,17 @@ export function AgentStatusOrb() {
     }
 
     const state = status.state;
+    // Only an idle, unattended orb dozes. A run or a suggestion wakes it, and so does the
+    // pointer or keyboard focus. It stays fully usable: a click opens the chat as usual.
+    const dozing =
+        userAway &&
+        state === "idle" &&
+        !visibleSuggestion &&
+        !miniOpen &&
+        !hovered &&
+        !orbFocused &&
+        !inviteFocused &&
+        inviteText.length === 0;
     // Idle has nothing to report, so the tooltip falls back to the bare product name.
     const label = state === "idle" ? undefined : activeStateLabel(status);
     const showLabel = !dragging && !snapping && state !== "idle" && !miniOpen;
@@ -790,7 +826,13 @@ export function AgentStatusOrb() {
                 aria-label={label ? `${assistantName}: ${label}. Click to open the mini chat, double-click for the chat panel, right-click to hide the orb.` : `Click to open the ${assistantName} mini chat, double-click for the chat panel, right-click to hide the orb`}
             >
                 <OrbGlow className={ORB_GLOW_CLASS}>
-                    <CopilotOrb state={state} colors={colors} size={ORB_SIZE} noticing={!!visibleSuggestion} />
+                    <CopilotOrb
+                        state={state}
+                        colors={colors}
+                        size={ORB_SIZE}
+                        noticing={!!visibleSuggestion}
+                        dozing={dozing}
+                    />
                 </OrbGlow>
             </OrbButton>
         </Wrapper>

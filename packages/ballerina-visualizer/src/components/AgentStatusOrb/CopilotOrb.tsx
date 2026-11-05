@@ -107,6 +107,15 @@ const EYE_REST_TRANSITION_MS = 200;
 // While a suggestion is up the eyes hold a little wider, another resting height.
 const EYE_EAGER_HEIGHT_RATIO = EYE_HEIGHT_RATIO * 1.08;
 
+// Dozing: half of each eye hidden under a flat lid, a slower swirl and slower,
+// sparser blinks. The lid lifts over LID_TRANSITION_MS when it wakes.
+const LID_DOZING = 0.5;
+const LID_TRANSITION_MS = 400;
+const DOZE_ENERGY = 0.25;
+const DOZE_BLINK_MIN_MS = 7000;
+const DOZE_BLINK_MAX_MS = 10000;
+const DOZE_BLINK_DURATION_MS = 360;
+
 // Animates height rather than scaleY: `border-radius` resolves against the
 // unscaled box, so scaling squashes the corner radii into ellipses and the
 // blink lands on a rounded square instead of a flat slit.
@@ -146,23 +155,25 @@ const eyeDrift = keyframes`
     65%, 80% { transform: translateX(var(--eye-drift)); }
 `;
 
-type BlinkKind = "single" | "double";
+type BlinkKind = "single" | "double" | "slow";
 type EyeMotion = BlinkKind | "perk";
 
 const EYE_MOTION: Record<EyeMotion, { name: ReturnType<typeof keyframes>; ms: number }> = {
     single: { name: eyeBlink, ms: BLINK_DURATION_MS },
     double: { name: eyeDoubleBlink, ms: DOUBLE_BLINK_DURATION_MS },
+    slow: { name: eyeBlink, ms: DOZE_BLINK_DURATION_MS },
     perk: { name: eyePerk, ms: PERK_DURATION_MS },
 };
 
 /**
  * The blink currently playing, or null between blinks, with a fresh random gap
- * in between and an occasional double blink.
+ * in between and an occasional double blink. A dozing orb blinks slowly, further
+ * apart, and never doubles.
  *
  * The eye rests open: there is no second resting state to animate between, so
  * this drives a one-shot animation rather than a loop.
  */
-function useBlink(): BlinkKind | null {
+function useBlink(dozing: boolean): BlinkKind | null {
     const [blink, setBlink] = useState<BlinkKind | null>(null);
     useEffect(() => {
         const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -173,9 +184,11 @@ function useBlink(): BlinkKind | null {
             setBlink(null);
         };
         const schedule = () => {
-            const gap = BLINK_MIN_MS + Math.random() * (BLINK_MAX_MS - BLINK_MIN_MS);
+            const gap = dozing
+                ? DOZE_BLINK_MIN_MS + Math.random() * (DOZE_BLINK_MAX_MS - DOZE_BLINK_MIN_MS)
+                : BLINK_MIN_MS + Math.random() * (BLINK_MAX_MS - BLINK_MIN_MS);
             timer = setTimeout(() => {
-                const kind: BlinkKind = Math.random() < DOUBLE_BLINK_CHANCE ? "double" : "single";
+                const kind: BlinkKind = dozing ? "slow" : Math.random() < DOUBLE_BLINK_CHANCE ? "double" : "single";
                 setBlink(kind);
                 timer = setTimeout(() => {
                     setBlink(null);
@@ -195,7 +208,7 @@ function useBlink(): BlinkKind | null {
             reducedMotion.removeEventListener("change", applyMotionPreference);
             stop();
         };
-    }, []);
+    }, [dozing]);
     return blink;
 }
 
@@ -236,7 +249,7 @@ const Eyes = styled.div<{ $size: number; $thinking: boolean }>`
  * Fixed white rather than a theme token: the sphere behind it is now always
  * dark, so a theme-driven foreground could leave the eyes unreadable.
  */
-const Eye = styled.div<{ $size: number; $motion: EyeMotion | null; $openRatio: number }>`
+const Eye = styled.div<{ $size: number; $motion: EyeMotion | null; $openRatio: number; $lid: number }>`
     --eye-open: ${(props: { $size: number; $openRatio: number }) => props.$size * props.$openRatio}px;
     --eye-shut: ${(props: { $size: number }) => props.$size * EYE_SHUT_HEIGHT_RATIO}px;
     --eye-perk: ${(props: { $size: number }) => props.$size * EYE_PERK_HEIGHT_RATIO}px;
@@ -245,6 +258,9 @@ const Eye = styled.div<{ $size: number; $motion: EyeMotion | null; $openRatio: n
     flex: none;
     border-radius: 999px;
     background: #ffffff;
+    // A lid cuts the eye flat across the top and keeps its rounded bottom. The
+    // negative insets leave room for the glow, so only the lid edge clips anything.
+    clip-path: inset(${(props: { $lid: number }) => props.$lid * 100}% -300% -100% -300%);
     // Tight on purpose: a wider halo spills across the middle of the sphere and
     // lifts it off the near-black the reference keeps between the eyes.
     box-shadow:
@@ -255,8 +271,10 @@ const Eye = styled.div<{ $size: number; $motion: EyeMotion | null; $openRatio: n
     animation-name: ${(props: { $motion: EyeMotion | null }) => (props.$motion ? EYE_MOTION[props.$motion].name : "none")};
     animation-duration: ${(props: { $motion: EyeMotion | null }) => (props.$motion ? EYE_MOTION[props.$motion].ms : 0)}ms;
     animation-timing-function: linear;
-    transition: height ${EYE_REST_TRANSITION_MS}ms ease-out;
-    // The squint and the wider eye stay: they are poses, not motion.
+    transition:
+        height ${EYE_REST_TRANSITION_MS}ms ease-out,
+        clip-path ${LID_TRANSITION_MS}ms ease;
+    // The squint, the wider eye and the lid stay: they are poses, not motion.
     @media (prefers-reduced-motion: reduce) {
         animation: none;
         transition: none;
@@ -271,11 +289,13 @@ export interface CopilotOrbProps {
     theme?: OrbTheme;
     /** True while the orb is offering a suggestion: the eyes perk up once, then the orb stays eager until it turns off. */
     noticing?: boolean;
+    /** True while the orb dozes after the user has been away: heavy lids, slow blinks, a calmer swirl. */
+    dozing?: boolean;
 }
 
-export function CopilotOrb({ state, colors, size, theme, noticing = false }: CopilotOrbProps) {
+export function CopilotOrb({ state, colors, size, theme, noticing = false, dozing = false }: CopilotOrbProps) {
     const preferred = useOrbTheme();
-    const blink = useBlink();
+    const blink = useBlink(dozing);
     const perking = usePerk(noticing);
     // A perk overrides any blink that lands on top of it.
     const motion: EyeMotion | null = perking ? "perk" : blink;
@@ -289,7 +309,8 @@ export function CopilotOrb({ state, colors, size, theme, noticing = false }: Cop
     const requested = theme ?? preferred;
     // The animated orb needs WebGL; fall back to the simple one when it can't render.
     const resolved: OrbTheme = requested === "animated" && webglFailed ? FALLBACK_ORB_THEME : requested;
-    const energy = ORB_ENERGY[state];
+    const energy = dozing ? DOZE_ENERGY : ORB_ENERGY[state];
+    const lid = dozing ? LID_DOZING : 0;
 
     return (
         <Holder $size={size} $eager={noticing}>
@@ -301,8 +322,8 @@ export function CopilotOrb({ state, colors, size, theme, noticing = false }: Cop
             )}
             <IconOverlay>
                 <Eyes $size={size} $thinking={thinking}>
-                    <Eye $size={size} $motion={motion} $openRatio={openRatio} />
-                    <Eye $size={size} $motion={motion} $openRatio={openRatio} />
+                    <Eye $size={size} $motion={motion} $openRatio={openRatio} $lid={lid} />
+                    <Eye $size={size} $motion={motion} $openRatio={openRatio} $lid={lid} />
                 </Eyes>
             </IconOverlay>
         </Holder>

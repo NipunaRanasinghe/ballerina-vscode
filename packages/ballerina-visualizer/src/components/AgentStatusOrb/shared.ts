@@ -670,10 +670,10 @@ export function useSuppressAgentStatusOrb(suppressed = true): void {
 }
 
 /**
- * The hubs and design canvases the ambient orb belongs on. Forms, wizards, list
- * and settings pages, setup/welcome pages, Copilot's own views and anything still
- * loading go without it, so a view added later has to opt in here rather than
- * inherit the overlay.
+ * The views the ambient orb shows on: the project's hubs, design canvases, forms
+ * and config pages, where Copilot can work on the open project. Setup/welcome
+ * pages (no project yet), Copilot's own views and anything still loading go
+ * without it, so a view added later has to opt in rather than inherit the overlay.
  */
 const VIEWS_WITH_ORB: ReadonlySet<MACHINE_VIEW> = new Set([
     MACHINE_VIEW.PackageOverview,
@@ -687,6 +687,37 @@ const VIEWS_WITH_ORB: ReadonlySet<MACHINE_VIEW> = new Set([
     MACHINE_VIEW.GraphQLDiagram,
     MACHINE_VIEW.DataMapper,
     MACHINE_VIEW.InlineDataMapper,
+    MACHINE_VIEW.WorkspaceOverview,
+    MACHINE_VIEW.SequenceDiagram,
+    MACHINE_VIEW.AddConnectionWizard,
+    MACHINE_VIEW.AddAgent,
+    MACHINE_VIEW.AddAgentDefinition,
+    MACHINE_VIEW.ConnectionConfiguration,
+    MACHINE_VIEW.AddCustomConnector,
+    MACHINE_VIEW.ViewConfigVariables,
+    MACHINE_VIEW.EditConfigVariables,
+    MACHINE_VIEW.AddConfigVariables,
+    MACHINE_VIEW.EditConnectionWizard,
+    MACHINE_VIEW.BIMainFunctionForm,
+    MACHINE_VIEW.BIFunctionForm,
+    MACHINE_VIEW.BIAgentToolForm,
+    MACHINE_VIEW.BIWorkflowForm,
+    MACHINE_VIEW.BIDurableAgentForm,
+    MACHINE_VIEW.BIActivityForm,
+    MACHINE_VIEW.BINPFunctionForm,
+    MACHINE_VIEW.BITestFunctionForm,
+    MACHINE_VIEW.BIAIEvaluationForm,
+    MACHINE_VIEW.BIServiceWizard,
+    MACHINE_VIEW.BIServiceConfigView,
+    MACHINE_VIEW.BIListenerConfigView,
+    MACHINE_VIEW.AgentDefinitionDesigner,
+    MACHINE_VIEW.BIServiceClassConfigView,
+    MACHINE_VIEW.BIDataMapperForm,
+    MACHINE_VIEW.AIChatAgentWizard,
+    MACHINE_VIEW.ServiceFunctionForm,
+    MACHINE_VIEW.AIAgentToolForm,
+    MACHINE_VIEW.EvalsetViewer,
+    MACHINE_VIEW.ConfigurationCollector,
 ]);
 
 export function viewHidesAgentStatusOrb(view: MACHINE_VIEW | null | undefined): boolean {
