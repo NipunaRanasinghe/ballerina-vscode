@@ -28,7 +28,7 @@ jest.mock("@wso2/ballerina-core", () => ({
     SHARED_COMMANDS: { OPEN_AI_PANEL: "ballerina.open.ai.panel" },
     // The orb resolves its product name through these; mirrors index.test.tsx.
     ProductMode: { BALLERINA: "ballerina", INTEGRATOR: "integrator" },
-    seededProductMode: () => undefined,
+    seededProductMode: (): undefined => undefined,
     assistantName: () => "WSO2 Integrator Copilot",
     assistantTagline: () => "Your AI pair programmer for integration development",
 }));
