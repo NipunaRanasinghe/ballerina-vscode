@@ -17,11 +17,12 @@
  */
 
 import * as vscode from 'vscode';
-import { AgentRunStatus, AgentRunState, ChatNotify, agentRunStatusChanged, SHARED_COMMANDS } from '@wso2/ballerina-core';
+import { AgentRunStatus, AgentRunState, ChatNotify, agentRunStatusChanged, IntegrationRunFailure, SHARED_COMMANDS } from '@wso2/ballerina-core';
 import { RPCLayer } from '../../../RPCLayer';
 import { VisualizerWebview } from '../../../views/visualizer/webview';
 import { describeToolCall, describeToolResultProgress } from './toolLabels';
 import { copilotName } from '../../../utils/config';
+import { RUN_FAILURE_TTL_MS } from '../../project/run-failure';
 
 /** How long a terminal (completed/error) status stays visible before resetting to idle. */
 const TERMINAL_STATE_RESET_MS = 20000;
@@ -60,6 +61,7 @@ class AgentStatusManager {
     private status: AgentRunStatus = { state: 'idle', aiPanelOpen: false, timestamp: Date.now() };
     private runActive = false;
     private resetTimer: NodeJS.Timeout | undefined;
+    private runFailureTimer: NodeJS.Timeout | undefined;
     /** Panel on screen right now, as opposed to `status.aiPanelOpen`, which is merely alive. */
     private aiPanelVisible = false;
     /** An in-view surface (the overview composer) is already reporting the status inline. */
@@ -188,6 +190,25 @@ class AgentStatusManager {
             return;
         }
         this.status = { ...this.status, orbHidden: hidden, timestamp: Date.now() };
+        this.broadcast();
+    }
+
+    /** Offers help with a failed integration run until it expires or the next run starts. */
+    setRunFailure(failure: IntegrationRunFailure): void {
+        clearTimeout(this.runFailureTimer);
+        this.runFailureTimer = setTimeout(() => this.clearRunFailure(failure.projectPath), RUN_FAILURE_TTL_MS);
+        this.status = { ...this.status, runFailure: failure, timestamp: Date.now() };
+        this.broadcast();
+    }
+
+    /** Withdraws the failure for `projectPath`, if it is the one on offer. */
+    clearRunFailure(projectPath: string): void {
+        if (this.status.runFailure?.projectPath !== projectPath) {
+            return;
+        }
+        clearTimeout(this.runFailureTimer);
+        this.runFailureTimer = undefined;
+        this.status = { ...this.status, runFailure: undefined, timestamp: Date.now() };
         this.broadcast();
     }
 

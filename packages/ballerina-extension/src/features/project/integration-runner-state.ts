@@ -16,6 +16,8 @@ import { extension } from "../../BalExtensionContext";
 import { startDebugging } from "../editor-support/activator";
 import { TracerMachine } from "../tracing";
 import { PALETTE_COMMANDS } from "./cmds/cmd-runner";
+import { agentStatusManager } from "../ai/state/AgentStatusManager";
+import { isRunFailureExit } from "./run-failure";
 
 const BALLERINA_DEBUG_TYPE = "ballerina";
 const NOTEBOOK_DEBUG_SESSION_NAME = "Ballerina Notebook Debug";
@@ -121,7 +123,10 @@ export function markTerminalRunStarted(terminal: Terminal, projectPath: string):
  * run of the same integration starts.
  */
 export function markTaskRunStarted(task: TaskExecution, projectPath: string): void {
-    getOrCreateRun(projectPath).task = task;
+    const run = getOrCreateRun(projectPath);
+    run.task = task;
+    // A new run supersedes the last one's failure, whether it fixes it or not.
+    agentStatusManager.clearRunFailure(run.projectPath);
 }
 
 export function isIntegrationRunning(): boolean {
@@ -345,6 +350,13 @@ export function activateIntegrationRunnerState(): void {
         tasks.onDidEndTaskProcess((event) => {
             for (const run of activeRuns.values()) {
                 if (run.task === event.execution) {
+                    if (isRunFailureExit(event.exitCode)) {
+                        agentStatusManager.setRunFailure({
+                            integration: path.basename(run.projectPath),
+                            projectPath: run.projectPath,
+                            exitCode: event.exitCode,
+                        });
+                    }
                     run.task = undefined;
                     gcRun(run);
                 }

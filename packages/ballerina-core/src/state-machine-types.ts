@@ -744,6 +744,14 @@ export interface ConfigChangeEvent {
  */
 export type AgentRunState = "idle" | "running" | "awaiting-input" | "completed" | "error";
 
+/** An integration run (the Run button) that ended on its own with an error. */
+export interface IntegrationRunFailure {
+    /** The integration's folder name. */
+    integration: string;
+    projectPath: string;
+    exitCode: number;
+}
+
 export interface AgentRunStatus {
     state: AgentRunState;
     /** Short human-readable description of what the agent is doing (e.g. "Editing service.bal"). */
@@ -754,6 +762,12 @@ export interface AgentRunStatus {
     orbHidden?: boolean;
     /** `ballerina.copilot.proactiveSuggestions` is off; the orb shows no offers of its own. */
     suggestionsOff?: boolean;
+    /**
+     * The last integration run that failed, while it is still worth offering help
+     * with. Not about the agent: it rides on this status because the orb already
+     * listens to it.
+     */
+    runFailure?: IntegrationRunFailure;
     /** Generation (run) the status belongs to, when a run is/was active. */
     generationId?: string;
     /** Epoch millis of the last status change. */
