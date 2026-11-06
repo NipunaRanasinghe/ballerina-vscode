@@ -109,6 +109,7 @@ describe("dozing orb", () => {
                 executeCommand: jest.fn().mockResolvedValue(undefined),
                 sendCopilotSuggestionTelemetry: mockSendSuggestionTelemetry,
             }),
+            getAiPanelRpcClient: () => ({ isUserAuthenticated: () => Promise.resolve(true) }),
             onAgentRunStatusChanged: jest.fn((cb: (status: AgentRunStatus) => void) => {
                 pushed = cb;
             }),

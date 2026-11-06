@@ -16,14 +16,14 @@
  * under the License.
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { keyframes } from "@emotion/react";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { AgentRunStatus, AgentRunState, SHARED_COMMANDS } from "@wso2/ballerina-core";
 import { MiniChat } from "./MiniChat";
-import { CopilotOrb } from "./CopilotOrb";
-import { useOrbColors } from "./orbTheme";
+import { CopilotOrb, HOP_FIRST_LANDING_MS } from "./CopilotOrb";
+import { ambientBorderColor, useOrbColors } from "./orbTheme";
 import {
     AmbientFrame,
     Anchor,
@@ -48,6 +48,8 @@ import {
     type SuggestionKind,
 } from "./suggestions";
 import { createMiniChatPrompt, MiniChatPrompt } from "./promptHandoff";
+import { useOrbOffer } from "./useOrbOffer";
+import { buildRunFailureOffer, RUN_FAILURE_OFFER_DELAY_MS } from "./runFailureOffer";
 import { useAssistantName } from "../../hooks/useProductMode";
 
 /**
@@ -203,7 +205,8 @@ const InviteHitBridge = styled.div<InviteVisibility & { floating: boolean }>`
     pointer-events: ${(props: InviteVisibility) => (props.visible ? "auto" : "none")};
 `;
 
-const InviteShell = styled.div<InviteVisibility>`
+const InviteShell = styled.div<InviteVisibility & { $delayInMs?: number }>`
+    position: relative;
     border-radius: 10px;
     // Hidden it still animates, on every view that hosts an orb.
     ${(props: InviteVisibility) => (props.visible ? "" : "& * { animation-play-state: paused; }")}
@@ -212,10 +215,13 @@ const InviteShell = styled.div<InviteVisibility>`
     transform: translateX(${(props: InviteVisibility) => (props.visible ? "0" : "6px")});
     visibility: ${(props: InviteVisibility) => (props.visible ? "visible" : "hidden")};
     /* visibility waits for the fade-out so the box leaves the tab order only once it is gone. */
+    // A suggestion waits for the orb's first hop to land ($delayInMs) before it shows.
     transition:
         opacity ${INVITE_FADE_MS}ms ease,
         transform ${INVITE_FADE_MS}ms ease,
         visibility 0s linear ${(props: InviteVisibility) => (props.visible ? 0 : INVITE_FADE_MS)}ms;
+    transition-delay: ${(props: { visible: boolean; $delayInMs?: number }) =>
+        props.visible && props.$delayInMs ? props.$delayInMs : 0}ms;
     @media (prefers-reduced-motion: reduce) {
         transition: none;
     }
@@ -272,24 +278,30 @@ const InviteInput = styled.input`
 `;
 
 /**
- * The proactive offer, shown in place of the invite's input. It shares the pill
+ * The proactive offer, shown in place of the invite's input. It shares the frame
  * so the orb never grows a second box: one surface beside the orb, whether it is
- * waiting to be typed into or has something to say.
+ * waiting to be typed into or has something to say. As an offer it becomes a
+ * speech bubble, with a tail pointing at the orb, worded as the orb speaking.
  */
-const SuggestionRow = styled.div`
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    max-width: 280px;
+const SuggestionBubble = styled.div`
+    display: grid;
+    gap: 3px;
+    width: 252px;
+    max-width: 100%;
+    padding: 5px 7px;
+    font-family: var(--vscode-font-family);
 `;
 
 const SuggestionText = styled.span`
-    flex: 1;
-    padding: 5px 2px 5px 6px;
-    font-size: 12px;
-    font-family: var(--vscode-font-family);
+    font-size: 13px;
     color: var(--vscode-foreground);
     line-height: 1.35;
+`;
+
+const SuggestionActions = styled.div`
+    display: flex;
+    gap: 6px;
+    margin-top: 7px;
 `;
 
 const SuggestionAccept = styled.button`
@@ -297,8 +309,8 @@ const SuggestionAccept = styled.button`
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    padding: 4px 8px;
-    font-size: 11px;
+    padding: 5px 10px;
+    font-size: 12px;
     font-family: var(--vscode-font-family);
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
@@ -309,18 +321,54 @@ const SuggestionAccept = styled.button`
 
 const SuggestionDismiss = styled.button`
     flex: none;
-    display: flex;
-    align-items: center;
     background: transparent;
     border: none;
     color: var(--vscode-descriptionForeground);
     cursor: pointer;
-    padding: 4px;
+    padding: 5px 8px;
     border-radius: 4px;
+    font-size: 12px;
+    font-family: var(--vscode-font-family);
     &:hover {
         color: var(--vscode-foreground);
         background: var(--vscode-toolbar-hoverBackground);
     }
+`;
+
+/** The side of the bubble facing the orb, from how the wrapper lays them out. */
+type TailSide = "left" | "right" | "top" | "bottom";
+const TAIL_SIDE_BY_DIRECTION: Record<"row" | "row-reverse" | "column" | "column-reverse", TailSide> = {
+    // The orb is the wrapper's last child: after the bubble in "row" and "column", before it otherwise.
+    row: "right",
+    "row-reverse": "left",
+    column: "bottom",
+    "column-reverse": "top",
+};
+const TAIL_SIZE = 10;
+const TAIL_PLACEMENT: Record<TailSide, string> = {
+    right: `right: -${TAIL_SIZE / 2}px; top: 50%; margin-top: -${TAIL_SIZE / 2}px; border-top-width: 1px; border-right-width: 1px;`,
+    left: `left: -${TAIL_SIZE / 2}px; top: 50%; margin-top: -${TAIL_SIZE / 2}px; border-bottom-width: 1px; border-left-width: 1px;`,
+    bottom: `bottom: -${TAIL_SIZE / 2}px; left: 50%; margin-left: -${TAIL_SIZE / 2}px; border-right-width: 1px; border-bottom-width: 1px;`,
+    top: `top: -${TAIL_SIZE / 2}px; left: 50%; margin-left: -${TAIL_SIZE / 2}px; border-left-width: 1px; border-top-width: 1px;`,
+};
+
+/**
+ * A square turned 45 degrees, half of it outside the bubble. Its two outer edges
+ * carry the frame's border color, and its fill covers the frame's border where the
+ * two meet, so the tail reads as part of the bubble. Offers only show while idle,
+ * hence the idle border color.
+ */
+const BubbleTail = styled.span<{ $side: TailSide }>`
+    position: absolute;
+    z-index: 1;
+    width: ${TAIL_SIZE}px;
+    height: ${TAIL_SIZE}px;
+    box-sizing: border-box;
+    transform: rotate(45deg);
+    background: var(--vscode-editor-background);
+    border: 0 solid ${ambientBorderColor("idle")};
+    pointer-events: none;
+    ${(props: { $side: TailSide }) => TAIL_PLACEMENT[props.$side]}
 `;
 
 interface OrbStyleProps {
@@ -460,6 +508,15 @@ export function AgentStatusOrb() {
     /** The live proactive offer, or null when nothing is being suggested. */
     const [suggestion, setSuggestion] = useState<CopilotSuggestion | null>(null);
     useEffect(() => subscribeSuggestion(setSuggestion), []);
+
+    // A failed integration run is reported by the extension rather than a view, so
+    // the orb raises that offer itself.
+    const runFailure = status?.runFailure;
+    const runFailureOffer = useMemo(
+        () => (runFailure ? buildRunFailureOffer(runFailure) : null),
+        [runFailure?.integration, runFailure?.projectPath, runFailure?.exitCode]
+    );
+    useOrbOffer("run-failure", runFailureOffer, { delayMs: RUN_FAILURE_OFFER_DELAY_MS });
 
     useEffect(() => subscribeOrbSuppressed(setOrbSuppressed), []);
     const userAway = useUserAway(DOZE_AFTER_MS);
@@ -609,12 +666,18 @@ export function AgentStatusOrb() {
         openMiniChat(text ? createMiniChatPrompt(text, { autoSubmit: true }) : undefined);
     };
 
+    /** "Not now" or Escape: quiets this kind for the rest of the session. */
+    const dismissSuggestion = (offer: CopilotSuggestion) => {
+        reportSuggestion(offer.kind, "dismissed");
+        clearSuggestion(offer.kind, true);
+    };
+
     // Taking up an offer is the same handoff as typing into the invite: the
-    // prompt goes to the mini chat, not the full panel, and is left unsent so
-    // the user can edit or abandon it.
+    // prompt goes to the mini chat, not the full panel. Each offer's prompt says
+    // whether it runs straight away (all do today) and whether it plans first.
     const acceptSuggestion = (offer: CopilotSuggestion) => {
         miniPromptRef.current = offer.prompt;
-        clearSuggestion(offer.kind, "accepted");
+        clearSuggestion(offer.kind);
         reportSuggestion(offer.kind, "accepted");
         setMiniChatKey((key) => key + 1);
         setMiniOpen(true);
@@ -769,30 +832,39 @@ export function AgentStatusOrb() {
         >
             {inviteHosted && (
                 <InviteHitBridge visible={inviteVisible} floating={dragPos !== null}>
-                    <InviteShell visible={inviteVisible} data-testid="invite-shell">
+                    <InviteShell
+                        visible={inviteVisible}
+                        $delayInMs={visibleSuggestion ? HOP_FIRST_LANDING_MS : 0}
+                        data-testid="invite-shell"
+                    >
                             <AmbientFrame $state={state}>
                             <InviteBox>
                             {visibleSuggestion ? (
-                                <SuggestionRow data-testid="orb-suggestion" role="status">
+                                <SuggestionBubble
+                                    data-testid="orb-suggestion"
+                                    role="status"
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Escape") {
+                                            dismissSuggestion(visibleSuggestion);
+                                        }
+                                    }}
+                                >
                                     <SuggestionText>{visibleSuggestion.text}</SuggestionText>
-                                    <SuggestionAccept
-                                        type="button"
-                                        onClick={() => acceptSuggestion(visibleSuggestion)}
-                                    >
-                                        {visibleSuggestion.action}
-                                    </SuggestionAccept>
-                                    <SuggestionDismiss
-                                        type="button"
-                                        title="Not now"
-                                        aria-label="Dismiss this suggestion"
-                                        onClick={() => {
-                                            reportSuggestion(visibleSuggestion.kind, "dismissed");
-                                            clearSuggestion(visibleSuggestion.kind, "dismissed");
-                                        }}
-                                    >
-                                        <span className="codicon codicon-close" />
-                                    </SuggestionDismiss>
-                                </SuggestionRow>
+                                    <SuggestionActions>
+                                        <SuggestionAccept
+                                            type="button"
+                                            onClick={() => acceptSuggestion(visibleSuggestion)}
+                                        >
+                                            {visibleSuggestion.action}
+                                        </SuggestionAccept>
+                                        <SuggestionDismiss
+                                            type="button"
+                                            onClick={() => dismissSuggestion(visibleSuggestion)}
+                                        >
+                                            Not now
+                                        </SuggestionDismiss>
+                                    </SuggestionActions>
+                                </SuggestionBubble>
                             ) : (
                                 <>
                                 <InviteInput
@@ -827,6 +899,7 @@ export function AgentStatusOrb() {
                             )}
                             </InviteBox>
                             </AmbientFrame>
+                            {visibleSuggestion && <BubbleTail $side={TAIL_SIDE_BY_DIRECTION[flexDirection]} />}
                     </InviteShell>
                 </InviteHitBridge>
             )}

@@ -55,9 +55,9 @@ import {
     __resetSuggestionStoreForTests,
     clearSuggestion,
     offerSuggestion,
-    SUGGESTION_COOLDOWN_MS,
 } from "./suggestions";
 import { createMiniChatPrompt } from "./promptHandoff";
+import { RUN_FAILURE_OFFER_DELAY_MS } from "./runFailureOffer";
 
 declare global {
     // eslint-disable-next-line no-var
@@ -93,7 +93,9 @@ describe("orb proactive suggestion", () => {
             (button) => button.textContent === OFFER.action
         ) as HTMLButtonElement | undefined;
     const dismiss = () =>
-        container.querySelector('button[aria-label="Dismiss this suggestion"]') as HTMLButtonElement | null;
+        Array.from(container.querySelectorAll("button")).find(
+            (button) => button.textContent === "Not now"
+        ) as HTMLButtonElement | undefined;
     const click = (element: HTMLElement) =>
         act(() => {
             element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -111,6 +113,7 @@ describe("orb proactive suggestion", () => {
                 executeCommand: jest.fn().mockResolvedValue(undefined),
                 sendCopilotSuggestionTelemetry: mockSendSuggestionTelemetry,
             }),
+            getAiPanelRpcClient: () => ({ isUserAuthenticated: () => Promise.resolve(true) }),
             onAgentRunStatusChanged: jest.fn((cb: (status: AgentRunStatus) => void) => {
                 pushed = cb;
             }),
@@ -149,7 +152,7 @@ describe("orb proactive suggestion", () => {
             offerSuggestion(OFFER);
         });
         expect(container.querySelector('input[placeholder="How can I help?"]')).toBeNull();
-        act(() => clearSuggestion(OFFER.kind, "dismissed"));
+        act(() => clearSuggestion(OFFER.kind, true));
         expect(bubble()).toBeNull();
         expect(pillShown()).toBe(false);
         expect(container.querySelector('input[placeholder="How can I help?"]')).not.toBeNull();
@@ -170,6 +173,20 @@ describe("orb proactive suggestion", () => {
             offerSuggestion(OFFER);
         });
         click(dismiss()!);
+        expect(bubble()).toBeNull();
+        act(() => {
+            offerSuggestion(OFFER);
+        });
+        expect(bubble()).toBeNull();
+    });
+
+    it("dismisses the offer on Escape, the same as Not now", () => {
+        act(() => {
+            offerSuggestion(OFFER);
+        });
+        act(() => {
+            bubble()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        });
         expect(bubble()).toBeNull();
         act(() => {
             offerSuggestion(OFFER);
@@ -249,6 +266,27 @@ describe("orb proactive suggestion", () => {
         expect(mockSendSuggestionTelemetry).toHaveBeenLastCalledWith({ kind: OFFER.kind, outcome: "accepted" });
     });
 
+    describe("failed integration run", () => {
+        const FAILED = {
+            ...IDLE,
+            runFailure: { integration: "orders_service", projectPath: "/work/orders_service", exitCode: 1 },
+        } as AgentRunStatus;
+
+        afterEach(() => jest.useRealTimers());
+
+        it("offers to investigate once the extension reports it, and withdraws it when cleared", async () => {
+            // Let the sign-in lookup settle before the clock is faked.
+            await act(async () => {});
+            jest.useFakeTimers();
+            notify(FAILED);
+            expect(bubble()).toBeNull();
+            act(() => jest.advanceTimersByTime(RUN_FAILURE_OFFER_DELAY_MS));
+            expect(bubble()!.textContent).toContain("orders_service stopped with an error.");
+            notify(IDLE);
+            expect(bubble()).toBeNull();
+        });
+    });
+
     describe("priority between kinds", () => {
         const ERRORS = { ...OFFER, kind: "flow-errors" as const, text: "This flow has 2 errors." };
 
@@ -277,46 +315,15 @@ describe("orb proactive suggestion", () => {
         });
     });
 
-    describe("cooldown after an answer", () => {
-        const OTHER = { ...OFFER, kind: "flow-errors" as const, text: "2 errors in this flow." };
-        let now: number;
-        beforeEach(() => {
-            now = 1_000_000;
-            jest.spyOn(Date, "now").mockImplementation(() => now);
+    it("can make a different offer straight after one is taken up", () => {
+        act(() => {
+            offerSuggestion(OFFER);
         });
-        afterEach(() => jest.restoreAllMocks());
-
-        it.each([
-            ["taken up", () => click(accept()!)],
-            ["dismissed", () => click(dismiss()!)],
-        ])("holds back any other kind for a while once an offer is %s", (_answer, answer) => {
-            act(() => {
-                offerSuggestion(OFFER);
-            });
-            answer();
-            now += SUGGESTION_COOLDOWN_MS - 1;
-            let offered = true;
-            act(() => {
-                offered = offerSuggestion(OTHER);
-            });
-            expect(offered).toBe(false);
-            now += 1;
-            act(() => {
-                offered = offerSuggestion(OTHER);
-            });
-            expect(offered).toBe(true);
+        click(accept()!);
+        let offered = false;
+        act(() => {
+            offered = offerSuggestion({ ...OFFER, kind: "flow-errors", text: "I found 1 error in this flow." });
         });
-
-        it("does not cool down after an offer is merely withdrawn", () => {
-            act(() => {
-                offerSuggestion(OFFER);
-            });
-            act(() => clearSuggestion(OFFER.kind));
-            let offered = false;
-            act(() => {
-                offered = offerSuggestion(OTHER);
-            });
-            expect(offered).toBe(true);
-        });
+        expect(offered).toBe(true);
     });
 });

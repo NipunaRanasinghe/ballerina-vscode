@@ -28,11 +28,11 @@ import type { MiniChatPrompt } from "./promptHandoff";
 // ---------------------------------------------------------------------------
 
 /** Names the trigger, so each one is dismissed on its own. */
-export type SuggestionKind = "data-mapper-unmapped" | "flow-errors" | "empty-body";
+export type SuggestionKind = "data-mapper-unmapped" | "flow-errors" | "empty-body" | "run-failure";
 
 export interface CopilotSuggestion {
     kind: SuggestionKind;
-    /** One line, shown beside the orb. */
+    /** The orb's one sentence about what it noticed and can do, in its own voice. */
     text: string;
     /** Label for the button that takes the offer up. */
     action: string;
@@ -46,6 +46,8 @@ export interface CopilotSuggestion {
  * waits; it is raised again when its view next changes what it would offer.
  */
 const SUGGESTION_PRIORITY: Record<SuggestionKind, number> = {
+    // Answers what the user just did, so it goes first.
+    "run-failure": 4,
     "flow-errors": 3,
     "empty-body": 2,
     "data-mapper-unmapped": 1,
@@ -60,19 +62,9 @@ let currentSuggestion: CopilotSuggestion | null = null;
  */
 const dismissedSuggestions = new Set<SuggestionKind>();
 
-/** How the user answered an offer. Withdrawing one (its view closed) is not an answer. */
-export type SuggestionAnswer = "accepted" | "dismissed";
-
 /**
- * After the user answers an offer, of any kind, the orb makes no other offer for
- * this long. Without it, each new kind adds another interruption on top of the last.
- */
-export const SUGGESTION_COOLDOWN_MS = 3 * 60 * 1000;
-let lastAnsweredAt: number | undefined;
-
-/**
- * Returns false when the kind was refused before, the orb is cooling down, or an
- * offer of equal or higher priority is already up. A lower one gives way.
+ * Returns false when the kind was refused before, or an offer of equal or higher
+ * priority is already up. A lower one gives way.
  */
 export function offerSuggestion(suggestion: CopilotSuggestion): boolean {
     if (dismissedSuggestions.has(suggestion.kind)) {
@@ -81,36 +73,29 @@ export function offerSuggestion(suggestion: CopilotSuggestion): boolean {
     if (currentSuggestion && SUGGESTION_PRIORITY[currentSuggestion.kind] >= SUGGESTION_PRIORITY[suggestion.kind]) {
         return false;
     }
-    if (lastAnsweredAt !== undefined && Date.now() - lastAnsweredAt < SUGGESTION_COOLDOWN_MS) {
-        return false;
-    }
     currentSuggestion = suggestion;
     suggestionListeners.forEach((listener) => listener(suggestion));
     return true;
 }
 
 /**
- * Ends the live offer. With no `answer` it is merely withdrawn. An answer starts
- * the cooldown, and "dismissed" also stops the same kind being offered again.
+ * Ends the live offer. `dismissed` marks it as refused rather than merely over
+ * (taken up, or its view closed), which stops the same kind being offered again.
  */
-export function clearSuggestion(kind?: SuggestionKind, answer?: SuggestionAnswer): void {
+export function clearSuggestion(kind?: SuggestionKind, dismissed = false): void {
     if (!currentSuggestion || (kind && currentSuggestion.kind !== kind)) {
         return;
     }
-    if (answer) {
-        lastAnsweredAt = Date.now();
-    }
-    if (answer === "dismissed") {
+    if (dismissed) {
         dismissedSuggestions.add(currentSuggestion.kind);
     }
     currentSuggestion = null;
     suggestionListeners.forEach((listener) => listener(null));
 }
 
-/** Clears the live offer, the record of what was refused, and the cooldown. */
+/** Clears both the live offer and the record of what was refused. */
 export function __resetSuggestionStoreForTests(): void {
     currentSuggestion = null;
-    lastAnsweredAt = undefined;
     dismissedSuggestions.clear();
     suggestionListeners.clear();
 }

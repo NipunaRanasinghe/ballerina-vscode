@@ -73,9 +73,10 @@ export function buildFlowErrorOffer(messages: string[], fileName?: string) {
     ].join("\n");
     return {
         kind: "flow-errors" as const,
-        text: count === 1 ? "This flow has an error." : `This flow has ${count} errors.`,
-        action: count === 1 ? "Fix it for me" : "Fix them for me",
-        // Left unsent, like every offer: the user sees what will be asked before it runs.
-        prompt: createMiniChatPrompt(prompt),
+        // The orb's own voice: what it found, then what it will do.
+        text: count === 1 ? "I found an error in this flow." : `I found ${count} errors in this flow.`,
+        action: count === 1 ? "Fix it" : "Fix them",
+        // Taking the offer up is the go-ahead, so it runs straight away.
+        prompt: createMiniChatPrompt(prompt, { autoSubmit: true }),
     };
 }

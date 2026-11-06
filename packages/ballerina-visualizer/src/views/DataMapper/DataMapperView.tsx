@@ -81,6 +81,12 @@ export interface DataMapperViewProps extends DataMapperProps {
     goToSource: () => void;
 }
 
+/**
+ * A short pause after the mapper opens, so the user sees the mapper itself before
+ * the orb offers to fill it in.
+ */
+const MAPPER_OFFER_DELAY_MS = 1500;
+
 export function DataMapperView(props: DataMapperViewProps) {
     const { filePath, codedata, name, projectPath, position, reusable, onClose, goToSource } = props;
     const [isFileUpdateError, setIsFileUpdateError] = useState(false);
@@ -241,14 +247,16 @@ export function DataMapperView(props: DataMapperViewProps) {
         const fields = `${signal.unmappedTargets} of ${signal.totalTargets} fields`;
         setMapperOffer({
             kind: "data-mapper-unmapped",
-            text: `${fields} are still unmapped.`,
-            action: "Map them for me",
+            text: `${fields} are still unmapped. I can map the rest.`,
+            action: "Map them",
+            // Taking the offer up is the go-ahead, so it runs straight away.
             prompt: createMiniChatPrompt(
-                `Map the ${signal.unmappedTargets} unmapped output fields in the "${name}" data mapper.`
+                `Map the ${signal.unmappedTargets} unmapped output fields in the "${name}" data mapper.`,
+                { autoSubmit: true }
             ),
         });
     }, [isFetching, modelState.model, name]);
-    useOrbOffer("data-mapper-unmapped", mapperOffer, { busy: isFetching });
+    useOrbOffer("data-mapper-unmapped", mapperOffer, { busy: isFetching, delayMs: MAPPER_OFFER_DELAY_MS });
 
     const hasInputs = useMemo(
         () => modelState.model?.inputs?.length > 0,

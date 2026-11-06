@@ -88,14 +88,16 @@ export function buildImplementOffer(parent: ParentMetadata, fileName?: string): 
         `Implement the ${what} \`${name}\`${fileName ? ` in ${fileName}` : ""}. Its body is empty.`,
         ...signature,
         "",
-        "Keep the existing signature. Work out what it should do from its name, signature and how the rest of the project uses it, and ask me if that is unclear.",
+        "Keep the existing signature. Work out what it should do from its name, signature and how the rest of the project uses it, and set that out in the plan so I can correct it before you write the code.",
     ].join("\n");
     return {
         kind: "empty-body",
-        // The pill shows plain text, so the name goes in bare; the prompt is markdown.
-        text: `${name} has no logic yet.`,
-        action: "Implement it for me",
-        // Left unsent, like every offer: the user can say what it should do before it runs.
-        prompt: createMiniChatPrompt(prompt),
+        // The bubble shows plain text, so the name goes in bare; the prompt is markdown.
+        text: `${name} is still empty. I can write it.`,
+        action: "Implement it",
+        // Runs straight away, but in plan mode: all Copilot has is the name and signature,
+        // so it guesses what the body should do. Plan mode makes it set that out and wait
+        // for the user to approve before it writes anything.
+        prompt: createMiniChatPrompt(prompt, { autoSubmit: true, planMode: true }),
     };
 }

@@ -89,7 +89,7 @@ describe("useOrbOffer", () => {
 
     it("does not raise a dismissed offer again when the view re-renders it", async () => {
         await render(MAPPING);
-        act(() => clearSuggestion(MAPPING.kind, "dismissed"));
+        act(() => clearSuggestion(MAPPING.kind, true));
         await render({ ...MAPPING });
         expect(live).toBeNull();
     });

@@ -38,7 +38,7 @@ export interface OrbOfferOptions {
  *   re-rendering the same offer does not restart the wait.
  * - Leaving the view withdraws the offer.
  *
- * Which offer wins when several are raised, the cooldown and dismissals live in
+ * Which offer wins when several are raised, and dismissals, live in
  * the store (`offerSuggestion`), so every trigger gets the same rules.
  */
 export function useOrbOffer(

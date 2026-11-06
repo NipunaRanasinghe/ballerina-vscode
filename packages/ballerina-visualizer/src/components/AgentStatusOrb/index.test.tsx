@@ -94,6 +94,7 @@ function makeRpcClient() {
             getCopilotOrbTheme: jest.fn().mockResolvedValue("animated"),
             executeCommand: jest.fn().mockResolvedValue(undefined),
         }),
+        getAiPanelRpcClient: () => ({ isUserAuthenticated: () => Promise.resolve(true) }),
         onAgentRunStatusChanged: jest.fn((cb: (status: AgentRunStatus) => void) => {
             pushed = cb;
         }),

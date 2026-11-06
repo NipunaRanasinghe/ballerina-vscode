@@ -90,7 +90,7 @@ describe("useFlowOffers", () => {
         expect(offer).toBeNull();
         wait(1);
         expect(offer?.kind).toBe("flow-errors");
-        expect(offer?.text).toBe("This flow has an error.");
+        expect(offer?.text).toBe("I found an error in this flow.");
     });
 
     it("does not restart the wait when a refetch brings the same errors", async () => {
@@ -107,7 +107,7 @@ describe("useFlowOffers", () => {
         await render({ model: withErrors("a", "b") });
         expect(offer).toBeNull();
         wait(FLOW_ERROR_OFFER_DELAY_MS);
-        expect(offer?.text).toBe("This flow has 2 errors.");
+        expect(offer?.text).toBe("I found 2 errors in this flow.");
     });
 
     it("withdraws the offer once the errors are fixed", async () => {
@@ -158,7 +158,7 @@ describe("useFlowOffers", () => {
             expect(offer).toBeNull();
             wait(1);
             expect(offer?.kind).toBe("empty-body");
-            expect(offer?.text).toBe("getName has no logic yet.");
+            expect(offer?.text).toBe("getName is still empty. I can write it.");
         });
 
         it("offers to implement it instead of fixing the errors the empty body causes", async () => {

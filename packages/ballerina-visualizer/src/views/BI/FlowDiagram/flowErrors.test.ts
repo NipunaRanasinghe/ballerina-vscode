@@ -69,18 +69,19 @@ describe("readFlowErrors", () => {
 describe("buildFlowErrorOffer", () => {
     it("words a single error in the singular", () => {
         const offer = buildFlowErrorOffer(["undefined symbol 'x'"], "main.bal");
-        expect(offer.text).toBe("This flow has an error.");
-        expect(offer.action).toBe("Fix it for me");
+        expect(offer.text).toBe("I found an error in this flow.");
+        expect(offer.action).toBe("Fix it");
         expect(offer.prompt.text).toContain("in main.bal");
         expect(offer.prompt.text).toContain("1. undefined symbol 'x'");
-        expect(offer.prompt.autoSubmit).toBe(false);
+        expect(offer.prompt.autoSubmit).toBe(true);
+        expect(offer.prompt.planMode).toBe(false);
     });
 
     it("counts several and caps the list in the prompt", () => {
         const messages = Array.from({ length: 25 }, (_, index) => `error ${index + 1}`);
         const offer = buildFlowErrorOffer(messages);
-        expect(offer.text).toBe("This flow has 25 errors.");
-        expect(offer.action).toBe("Fix them for me");
+        expect(offer.text).toBe("I found 25 errors in this flow.");
+        expect(offer.action).toBe("Fix them");
         expect(offer.prompt.text).toContain("20. error 20");
         expect(offer.prompt.text).not.toContain("21. error 21");
         expect(offer.prompt.text).toContain("(and 5 more)");

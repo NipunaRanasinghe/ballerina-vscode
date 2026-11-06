@@ -83,7 +83,7 @@ function makeRpcClient() {
     };
     const client = {
         getCommonRpcClient: () => common,
-        getAiPanelRpcClient: () => ({ openAIPanel }),
+        getAiPanelRpcClient: () => ({ openAIPanel, isUserAuthenticated: () => Promise.resolve(true) }),
         onAgentRunStatusChanged: jest.fn((cb: (status: AgentRunStatus) => void) => {
             pushed = cb;
         }),

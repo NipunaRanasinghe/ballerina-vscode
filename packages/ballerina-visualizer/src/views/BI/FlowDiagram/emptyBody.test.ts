@@ -66,20 +66,22 @@ describe("buildImplementOffer", () => {
             { kind: "Function", label: "getName", parameters: ["int id"], return: "string?" },
             "main.bal"
         );
-        expect(offer.text).toBe("getName has no logic yet.");
-        expect(offer.action).toBe("Implement it for me");
+        expect(offer.text).toBe("getName is still empty. I can write it.");
+        expect(offer.action).toBe("Implement it");
         expect(offer.prompt.text).toContain("Implement the function `getName` in main.bal.");
         expect(offer.prompt.text).toContain("Parameters: int id");
         expect(offer.prompt.text).toContain("Returns: string?");
-        expect(offer.prompt.autoSubmit).toBe(false);
+        // It guesses from the name, so it plans first and waits for approval.
+        expect(offer.prompt.autoSubmit).toBe(true);
+        expect(offer.prompt.planMode).toBe(true);
     });
 
     it("names a resource by its method and path, with the root path as /", () => {
         expect(buildImplementOffer({ kind: "Resource", label: "orders/[string id]", accessor: "get" }).text).toBe(
-            "GET /orders/[string id] has no logic yet."
+            "GET /orders/[string id] is still empty. I can write it."
         );
         expect(buildImplementOffer({ kind: "Resource", label: ".", accessor: "post" }).text).toBe(
-            "POST / has no logic yet."
+            "POST / is still empty. I can write it."
         );
     });
 
