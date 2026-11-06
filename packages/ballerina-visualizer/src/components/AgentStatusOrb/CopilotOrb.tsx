@@ -72,6 +72,11 @@ const AURORA_BREATHE_MS = 2400;
 const AURORA_ACCENT = "#a77bff";
 // Strongest behind the orb, gone by the edge of the glow: no hole and no ring edge.
 const AURORA_MASK = "radial-gradient(circle, #000 28%, rgba(0, 0, 0, 0.55) 48%, transparent 70%)";
+// Against a light editor the same glow washes out to a faint haze, so there it is drawn
+// tighter (less blur), denser before it fades, and more saturated.
+const AURORA_LIGHT_BLUR_RATIO = 0.1;
+const AURORA_LIGHT_MASK = "radial-gradient(circle, #000 40%, rgba(0, 0, 0, 0.8) 56%, transparent 74%)";
+const AURORA_LIGHT_SATURATE = 1.6;
 
 const auroraTurn = keyframes`
     from { transform: rotate(0deg); }
@@ -92,6 +97,14 @@ const AuroraGlow = styled.div<{ $size: number }>`
     -webkit-mask: ${AURORA_MASK};
     mask: ${AURORA_MASK};
     animation: ${auroraBreathe} ${AURORA_BREATHE_MS}ms ease-in-out infinite;
+    // VS Code marks the webview body with the theme kind.
+    body.vscode-light &,
+    body.vscode-high-contrast-light & {
+        filter: blur(${(props: { $size: number }) => props.$size * AURORA_LIGHT_BLUR_RATIO}px)
+            saturate(${AURORA_LIGHT_SATURATE});
+        -webkit-mask: ${AURORA_LIGHT_MASK};
+        mask: ${AURORA_LIGHT_MASK};
+    }
     @media (prefers-reduced-motion: reduce) {
         animation: none;
     }
