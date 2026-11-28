@@ -45,28 +45,12 @@ export class Diagram {
     public async clickHoverAddButtonByIndex(index: number): Promise<void> {
         const link = (await this.getDiagramContainer()).getByTestId(`diagram-link-${index}`);
         await link.waitFor();
-        await link.hover();
-
         const addButton = link.getByTestId(`link-add-button-${index}`);
-
-        // Wait for the add button to become visible and stable
-        await addButton.waitFor({
-            state: 'visible',
-            timeout: 5000
-        });
-
-        // Try clicking with retries if needed, to handle instability
-        for (let attempt = 0; attempt < 5; attempt++) {
-            try {
-                await addButton.click({ trial: false, force: true, timeout: 2000 });
-                return;
-            } catch (err) {
-                // Wait a bit and retry as element may not be stable/visible yet
-                await this._page.waitForTimeout(500);
-            }
-        }
-        // Last attempt: throw for diagnostic
-        await addButton.click({ trial: false, force: true, timeout: 2000 });
+        // A link draws no add button while the diagram is read-only, so hover again on each try.
+        await this.clickUntilSidePanelOpens(async () => {
+            await link.hover({ timeout: 2000 });
+            await addButton.click({ force: true, timeout: 2000 });
+        }, `the + on link ${index}`);
     }
 
     /**
@@ -75,7 +59,25 @@ export class Diagram {
      */
     public async clickAddButtonByIndex(index: number): Promise<void> {
         const addButton = (await this.getDiagramContainer()).getByTestId(`empty-node-add-button-${index}`);
-        await addButton.click({ trial: false, force: true, timeout: 2000 });
+        await this.clickUntilSidePanelOpens(
+            () => addButton.click({ force: true, timeout: 2000 }),
+            `the + at empty node ${index}`,
+        );
+    }
+
+    /**
+     * After a save the diagram fetches the flow model again at 0, 1.5, 4 and 8 s, and is read-only
+     * while each fetch runs: a + clicked then does nothing. Clicks until the side panel opens.
+     */
+    private async clickUntilSidePanelOpens(click: () => Promise<unknown>, what: string): Promise<void> {
+        const deadline = Date.now() + 60000;
+        while (Date.now() < deadline) {
+            await click().catch(() => undefined);
+            if (await this.sidePanelOpens(2000)) {
+                return;
+            }
+        }
+        await this.expectSidePanel(what);
     }
 
     /**

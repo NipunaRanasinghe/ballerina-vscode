@@ -17,7 +17,7 @@
  * under the License.
  */
 import { expect, test } from '@playwright/test';
-import { confirmSaveChangesAndGoBack, createArtifactAndGetWebview, deleteArtifactFromTree, domClick, getWebview, BI_INTEGRATOR_LABEL, initTest, page } from '../utils/helpers';
+import { confirmSaveChangesAndGoBack, createArtifactAndGetWebview, deleteArtifactFromTree, domClick, executeBallPullCommand, getWebview, BI_INTEGRATOR_LABEL, initTest, page } from '../utils/helpers';
 import { Form } from '@wso2/playwright-vscode-tester';
 import { ProjectExplorer } from '../utils/pages';
 import { DEFAULT_PROJECT_NAME } from '../utils/helpers/constants';
@@ -26,6 +26,9 @@ export default function createTests() {
     test.describe.serial('Salesforce Integration Tests', {
     }, async () => {
         let listenerName: string;
+        // On a cold Central cache the form waits for ballerinax/salesforce to resolve, which takes
+        // longer than the test waits for the form. Pull it before initTest launches VS Code.
+        test.beforeAll(() => executeBallPullCommand(['ballerinax/salesforce']));
         initTest();
         test('Create Salesforce Integration', async ({ }, testInfo) => {
             const testAttempt = testInfo.retry + 1;

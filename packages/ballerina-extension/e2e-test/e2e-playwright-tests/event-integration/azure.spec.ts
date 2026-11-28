@@ -33,6 +33,8 @@ export default function createTests() {
             const artifactWebView = await createArtifactAndGetWebview('Azure Integration', 'trigger-asb');
             const form = new Form(page.page, BI_INTEGRATOR_LABEL, artifactWebView);
             await form.switchToFormView(false, artifactWebView);
+            // Form.fill skips a cmEditor field that is not rendered yet, so wait for the form's first field.
+            await artifactWebView.locator('[data-testid="ex-editor-connectionString"]').waitFor({ timeout: 60000 });
             await form.fill({
                 values: {
                     'connectionString': {
@@ -64,7 +66,9 @@ export default function createTests() {
                     }
                 }
             });
-            await form.submit('Create', true);
+            // Not forced: the form hides itself, Create button included, while an editor in it loads,
+            // and only a normal click waits for the button to be visible again.
+            await form.submit('Create');
 
             const projectExplorer = new ProjectExplorer(page.page);
             await projectExplorer.findItem([DEFAULT_PROJECT_NAME, `Azure Service Bus Event Integration`]);

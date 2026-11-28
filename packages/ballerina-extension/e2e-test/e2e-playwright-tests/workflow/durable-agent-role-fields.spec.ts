@@ -69,9 +69,14 @@ export default function createTests() {
             await saveButton.waitFor({ state: 'hidden', timeout: 60000 });
 
             logStep('Register lookupBill with a Human Approval whose reviewer roles are ()');
-            await webview.getByTestId('durable-agent-affordance-activity').first().click({ force: true });
+            // The diagram fetches the flow model again for a few seconds after the save, and a click on
+            // the + that lands while it redraws is lost, so click until the activity list opens.
+            const addActivity = webview.getByTestId('durable-agent-affordance-activity').first();
             const item = panel.getByText('lookupBill', { exact: true }).first();
-            await item.waitFor({ state: 'visible', timeout: 60000 });
+            await expect.poll(async () => {
+                await addActivity.click({ force: true, timeout: 5000 }).catch(() => undefined);
+                return item.waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false);
+            }, { timeout: 60000, intervals: [0] }).toBe(true);
             await item.scrollIntoViewIfNeeded();
             await page.page.waitForTimeout(500);
             await item.click({ force: true });

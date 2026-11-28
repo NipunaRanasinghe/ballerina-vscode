@@ -212,6 +212,10 @@ export class TypeEditorUtils {
                 `original error: ${(error as Error).message}`
             );
         }
+        // The new type's node can appear before its save finishes, and the save closes the type
+        // panel when it does, including a panel this click had just opened. Wait for the saved form to close.
+        await this.webView.getByRole('button', { name: 'Save', exact: true }).first()
+            .waitFor({ state: 'hidden', timeout: 60000 });
         // `force` — the floating Copilot orb/invite box has been observed to
         // overlap and intercept pointer events on this button.
         await addTypeButton.click({ force: true });
