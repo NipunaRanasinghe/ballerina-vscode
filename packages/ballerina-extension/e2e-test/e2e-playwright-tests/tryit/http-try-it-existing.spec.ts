@@ -142,6 +142,10 @@ async function tryItAutoStartAndWaitForHurl(webview: WebView): Promise<string> {
 
 export default function createTests() {
     test.describe.serial('HTTP Try It Existing Service Tests', {}, async () => {
+        // Try It starts the service with Run Integration, which cannot start bal from a path with a
+        // space in a PowerShell task (C:\Program Files\Ballerina on the Windows runner). Re-enable with
+        // the fix for https://github.com/wso2/product-integrator/issues/2767.
+        test.skip(process.platform === 'win32', 'Run Integration fails on Windows: wso2/product-integrator#2767');
         initTest(true, true, undefined, undefined, PROJECT_TEMPLATE);
 
         test('Try It works against a pre-existing HTTP service without any authoring step', async () => {
